@@ -1,0 +1,2786 @@
+{
+	"Info": [
+		"Dismount",
+		"GetWarmthRating",
+		"GetWR",
+		"MoveToPackageLocation",
+		"SetEyeTexture",
+		"ShowBarterMenu",
+		"SBM",
+		"UpdateWeight",
+		"UW",
+		"ChangeHeadPart",
+		"CHP",
+		"ReplaceHeadPart",
+		"RHP",
+		"GetEnchantment",
+		"GetEnch",
+		"SetEnchantment",
+		"SetEnch",
+		"AddToMap",
+		"AMTM",
+		"AddKeywordToForm",
+		"RemoveKeywordFromForm",
+		"AddKeywordToRef",
+		"RemoveKeywordFromRef",
+		"EvaluatePackage",
+		"EVP",
+		"AddKeyIfNeeded",
+		"AKIN",
+		"ForceAddRagdollToWorld",
+		"FARW",
+		"ForceRemoveRagdollFromWorld",
+		"FRRW",
+		"SetVampire",
+		"SV",
+		"Bite",
+		"TurnVampire",
+		"TurnBetterVampire",
+		"ApplyMaterialShader",
+		"AMS",
+		"StopAllShaders",
+		"StopArtObject",
+		"SetArtObject",
+		"ToggleChildNode",
+		"GetAllEffectShaders",
+		"GetAllArtObjects",
+		"FindAllReferencesOfFormType",
+		"FindAllReferencesWithKeyword",
+		"FindAllReferencesOfType",
+		"SelectCrosshair",
+		"GetRunningPackage",
+		"CreateForm",
+		"DisposeForm",
+		"TrackForm",
+		"UntrackForm",
+		"AddMagicEffect",
+		"GetRefAliases",
+		"ShowMenu",
+		"HideMenu",
+		"ToggleOpenSleepWaitMenu",
+		"VCSHelp",
+		"VCS",
+		"FormTypeHelp",
+		"ReplaceArmorTextureSet",
+		"ReplaceFaceTextureSet",
+		"ReplaceSkinTextureSet",
+		"GetHairColor",
+		"SetHairColor",
+		"GetHeadPartTextureSet",
+		"SetHeadPartTextureSet",
+		"GetSkinColor",
+		"SetSkinColor",
+		"SetSkinAlpha",
+		"SetKey",
+		"MarkFavorite",
+		"UnmarkFavorite",
+		"SetSoundDescriptor",
+		"CreateSoundMarker",
+		"PlaySound",
+		"PlaySoundDescriptor",
+		"ClearMagicEffects",
+		"CopyMagicEffects",
+		"CopyAppearance",
+		"SetSpellTomeSpell",
+		"SetSpellAutoCalculate",
+		"SetSpellCostOverride",
+		"SetSpellChargeTime",
+		"SetSpellCastDuration",
+		"SetSpellRange",
+		"SetSpellCastingPerk",
+		"CreateColorForm",
+		"Teleport",
+		"Tel",
+		"SoundPause",
+		"SoundUnpause",
+		"SoundMute",
+		"SoundUnmute",
+		"SetVolume",
+		"SaveEx",
+		"GetIDFromConsoleRef",
+		"Del",
+		"VCSDel",
+		"AttachPapyrusScript",
+		"GetFormDescription",
+		"AddMagicEffectToSpell",
+		"GetFormTypeAll",
+		"CreateXMarkerRef",
+		"GetEnchantArt",
+		"GetCastingArt",
+		"GetHitEffectArt",
+		"GetEnchantShader",
+		"GetHitShader",
+		"SetEnchantArt",
+		"SetCastingArt",
+		"SetEnchantShader",
+		"SetHitShader",
+		"ResetActor3D",
+		"GetPackageIdles",
+		"AddPackageIdle",
+		"RemovePackageIdle",
+		"GetFormIDFromEditorID",
+		"GetEDIDFromFormID",
+		"GetFormModName",
+		"GetScriptsAttachedToActiveEffect",
+		"DismissAllSummons",
+		"AddMagicEffectToEnchantment",
+		"RemoveMagicEffectFromEnchantment",
+		"GetConditionList",
+		"Sleep",
+		"LaunchSpell",
+		"GetMenuContainer",
+		"GetItemHealthPercent",
+		"SetItemHealthPercent",
+		"SetReferenceDisplayName",
+		"SDN",
+		"SetName",
+		"EnchantObject",
+		"ClearDestruction",
+		"PlaceAroundReference",
+		"SaveCharacter",
+		"LoadCharacter",
+		"RecordSignatureHelp",
+		"RecSigs",
+		"PlayIdleWithTarget",
+		"PIWT",
+		"GetEquipType",
+		"SetEquipType",
+		"GetDialogueTarget",
+		"ForceFirstPerson",
+		"ForceThirdPerson",
+		"SetPlayerAIDriven",
+		"ShowLimitedRaceMenu",
+		"SetPlayersLastRiddenHorse",
+		"TriggerScreenBlood",
+		"TapKey",
+		"HoldKey",
+		"ReleaseKey",
+		"SetLocationKeywordData",
+		"GetLocationKeywordData",
+		"GetItemMaxCharge",
+		"GetItemCharge",
+		"SetItemMaxCharge",
+		"SetItemCharge",
+		"SetArtModelPath",
+		"SetArtModelPath",
+		"SetFogColor",
+		"SetFogPlanes",
+		"SetFogPower",
+		"SetPublic",
+		"GetActorOwner",
+		"GetFactionOwner",
+		"GetWaterLevel",
+		"GetActualWaterLevel",
+		"SlotHelp",
+		"GetSlotMask",
+		"SetSlotMask",
+		"AddSlotToMask",
+		"RemoveSlotFromMask",
+		"GetMaskForSlot",
+		"GetModelPath",
+		"SetModelPath",
+		"GetIconPath",
+		"SetIconPath",
+		"GetMessageIconPath",
+		"SetMessageIconPath",
+		"GetWeightClass",
+		"SetWeightClass",
+		"SendVampirismStateChanged",
+		"SetAttackActorOnSight",
+		"ActorSetDontMove",
+		"ShowGiftMenu",
+		"GetOutfit",
+		"SetOutfit",
+		"UnsetOutfit",
+		"VCSEquipItem",
+		"vcsei",
+		"VCSEquipShout",
+		"vcsesh",
+		"VCSEquipSpell",
+		"vcsesp",
+		"SetRestrained",
+		"RemoveAllArmorRefOverrides",
+		"RemoveAllPerks",
+		"RemoveAllVisiblePerks",
+		"RemoveAllSpells",
+		"RGBToInt",
+		"GetItemUniqueID",
+		"GetObjectUniqueID",
+		"SetItemDyeColor",
+		"GetItemDyeColor",
+		"ClearItemDyeColor",
+		"UpdateItemDyeColor",
+		"SetItemTextureLayerColor",
+		"GetItemTextureLayerColor",
+		"ClearItemTextureLayerColor",
+		"SetItemTextureLayerType",
+		"GetItemTextureLayerType",
+		"ClearItemTextureLayerType",
+		"SetItemTextureLayerTexture",
+		"GetItemTextureLayerTexture",
+		"ClearItemTextureLayerTexture",
+		"SetItemTextureLayerBlendMode",
+		"GetItemTextureLayerBlendMode",
+		"ClearItemTextureLayerBlendMode",
+		"UpdateItemTextureLayers",
+		"RevertOverlays",
+		"AddWeaponOverrideTextureSet",
+		"ApplyWeaponOverrides",
+		"AddSkinOverrideTextureSet",
+		"ApplySkinOverrides",
+		"RemoveAAOverride",
+		"StartDraggingObject",
+		"PrintArgsAsStrings",
+		"AddPackageOverride",
+		"RemovePackageOverride",
+		"CountPackageOverride",
+		"ClearPackageOverride",
+		"RemoveAllPackageOverride",
+		"SetChargeTimeAll",
+		"SetSpellFlag",
+		"SpellFlagHelp",
+		"GetWorldFieldOfView",
+		"GetWorldFOV",
+		"SetWorldFieldOfView",
+		"SetWorldFOV",
+		"GetFirstPersonFieldOfView",
+		"GetFirstPersonFOV",
+		"SetFirstPersonFieldOfView",
+		"SetFirstPersonFOV",
+		"SetClipBoardText",
+		"sc",
+		"SetDescription",
+		"ResetDescription",
+		"GetPackageTemplate",
+		"GetSeasonOverride",
+		"SetSeasonOverride",
+		"ClearSeasonOverride",
+		"MenuHelp",
+		"UICallbackCreate",
+		"VampireFeed",
+		"BlockActivation",
+		"VCSAddPerk",
+		"vcsap",
+		"VCSRemovePerk",
+		"vcsrp",
+		"AddBasePerk",
+		"AddBaseSpell",
+		"RemoveBasePerk",
+		"RemoveBaseSpell",
+		"AllowPCDialogue",
+		"MakePlayerFriend",
+		"PreventDetection",
+		"RegenerateHead",
+		"KillSilent",
+		"KillEssential",
+		"PathToReference",
+		"ClearForcedMovement",
+		"SetUnconscious",
+		"GetNthHeadPart",
+		"SetNthHeadPart",
+		"GetDoorDestination",
+		"GetDestination",
+		"SetDoorDestination",
+		"SetDestination",
+		"Duplicate",
+		"SetLinkedRef",
+		"RemAllItems",
+		"GetFormsWithScriptAttached",
+		"GetAliasesWithScriptAttached",
+		"GetRefAliasesWithScriptAttached",
+		"GetLastMenuOpened",
+		"SkillHelp",
+		"CreateFormList",
+		"CreateKeyword",
+		"CreateConstructibleObject",
+		"CreateTextureSet",
+		"GetAllConstructibleObjects",
+		"GetPlayableSpells",
+		"GetActorPlayableSpells",
+		"GetAshPileLinkedRef",
+		"RemoveAllInventoryEventFilters",
+		"SetActorOwner",
+		"SetHarvested",
+		"SetOpen",
+		"GetCurrentScene",
+		"FreezeActor",
+		"GetMaterialType",
+		"GetActiveGamebryoAnimation",
+		"NiOverrideHelp",
+		"SetValidRaces",
+		"SetHeadpartValidRaces",
+		"GetKeywords",
+		"LearnEnchantment",
+		"EnableSurvivalFeature",
+		"DisableSurvivalFeature",
+		"RestoreColdLevel",
+		"RestoreHungerLevel",
+		"RestoreExhaustionLevel",
+		"GetAllRefsInGrid",
+		"GetButtonForDXScanCode",
+		"Calm",
+		"CalmActor",
+		"GetQuality",
+		"SetQuality",
+		"CastEnchantment",
+		"CastPotion",
+		"CastIngredient",
+		"SetRefAsNoAIAcquire",
+		"TrainWith",
+		"QueryStat",
+		"SetMiscStat",
+		"HeadpartHelp",
+		"CollisionHelp",
+		"FactionFlagHelp",
+		"GetSkillLegendaryLevel",
+		"SetSkillLegendaryLevel",
+		"GetSlowTimeMult",
+		"SetSlowTimeMult",
+		"ApplyMeleeHit",
+		"ApplyHit",
+		"TemperEquipment",
+		"Temper",
+		"TemperWornEquipment",
+		"TemperWorn",
+		"MagicEffectHelp",
+		"GetFootstepSet",
+		"SetFootstepSet",
+		"RaceHelp",
+		"SetRecordFlag",
+		"ClearRecordFlag",
+		"IsRecordFlagSet",
+		"FormRecordHelp",
+		"SetObjectRefFlag",
+		"GetRace",
+		"FormHelp",
+		"GetActiveQuests",
+		"PlayDebugShader",
+		"GetMapMarkerIconType",
+		"SetMapMarkerIconType",
+		"GetMapMarkerName",
+		"SetMapMarkerName",
+		"GetCellOrWorldSpaceOriginForRef",
+		"SetCellOrWorldSpaceOriginForRef",
+		"GetCurrentMapMarkerRefs",
+		"GetAllMapMarkerRefs",
+		"ApplyNodeOverrides",
+		"DrawWeapon",
+		"SheatheWeapon",
+		"IdleHelp",
+		"PlayIdle",
+		"PI",
+		"PlayIdleWithTarget",
+		"PIWT",
+		"PlaySubGraphAnimation",
+		"PSGA",
+		"SetShaderType",
+		"IsScriptAttachedToForm",
+		"GetScriptsAttachedToForm",
+		"RemoveMagicEffectFromSpell",
+		"GetSpellType",
+		"SetSpellCastingType",
+		"SetSpellDeliveryType",
+		"SetSpellType",
+		"SetSpellMagicEffect",
+		"GetLastPlayerActivatedRef",
+		"GetLastPlayerMenuActivatedRef",
+		"SetObjectRefFlag"
+	],
+	"Data": {
+		"OnConsoleDismount": [
+			"Dismount"
+		],
+		"OnConsoleGetActorWarmthRating": [
+			"GetActorWarmthRating"
+		],
+		"OnConsoleGetArmorWarmthRating": [
+			"GetArmorWarmthRating"
+		],
+		"OnConsoleGetArmorArmorRating": [
+			"GetArmorArmorRating"
+		],
+		"OnConsoleSetArmorArmorRating": [
+			"SetArmorArmorRating"
+		],
+		"OnConsoleMoveToPackageLocation": [
+			"MoveToPackageLocation"
+		],
+		"OnConsoleSetEyeTexture": [
+			"SetEyeTexture"
+		],
+		"OnConsoleShowBarterMenu": [
+			"ShowBarterMenu",
+			"SBM"
+		],
+		"OnConsoleUpdateWeight": [
+			"UpdateWeight",
+			"UW"
+		],
+		"OnConsoleChangeHeadPart": [
+			"ChangeHeadPart",
+			"CHP"
+		],
+		"OnConsoleReplaceHeadPart": [
+			"ReplaceHeadPart",
+			"RHP"
+		],
+		"OnConsoleGetEnchantment": [
+			"GetEnchantment",
+			"GetEnch"
+		],
+		"OnConsoleSetEnchantment": [
+			"SetEnchantment",
+			"SetEnch"
+		],
+		"OnConsoleAddToMap": [
+			"AddToMap",
+			"AMTM"
+		],
+		"OnConsoleAddKeywordToForm": [
+			"AddKeywordToForm"
+		],
+		"OnConsoleRemoveKeywordFromForm": [
+			"RemoveKeywordFromForm"
+		],
+		"OnConsoleAddKeywordToRef": [
+			"AddKeywordToRef"
+		],
+		"OnConsoleRemoveKeywordFromRef": [
+			"RemoveKeywordFromRef"
+		],
+		"OnConsoleEvaluatePackage": [
+			"EvaluatePackage",
+			"EVP"
+		],
+		"OnConsoleAddKeyIfNeeded": [
+			"AddKeyIfNeeded",
+			"AKIN"
+		],
+		"OnConsoleForceAddRagdollToWorld": [
+			"ForceAddRagdollToWorld",
+			"FARW"
+		],
+		"OnConsoleForceRemoveRagdollFromWorld": [
+			"ForceRemoveRagdollFromWorld",
+			"FRRW"
+		],
+		"OnConsoleSetVampire": [
+			"SetVampire",
+			"SV"
+		],
+		"OnConsoleBite": [
+			"Bite"
+		],
+		"OnConsoleTurnVampire": [
+			"TurnVampire"
+		],
+		"OnConsoleTurnBetterVampire": [
+			"TurnBetterVampire"
+		],
+		"OnConsoleApplyMaterialShader": [
+			"ApplyMaterialShader",
+			"AMS"
+		],
+		"OnConsoleStopAllShaders": [
+			"StopAllShaders"
+		],
+		"OnConsoleStopArtObject": [
+			"StopArtObject"
+		],
+		"OnConsoleSetArtObject": [
+			"SetArtObject"
+		],
+		"OnConsoleToggleChildNode": [
+			"ToggleChildNode"
+		],
+		"OnConsoleGetAllEffectShaders": [
+			"GetAllEffectShaders"
+		],
+		"OnConsoleGetAllArtObjects": [
+			"GetAllArtObjects"
+		],
+		"OnConsoleFindAllReferencesOfFormType": [
+			"FindAllReferencesOfFormType"
+		],
+		"OnConsoleFindAllReferencesWithKeyword": [
+			"FindAllReferencesWithKeyword"
+		],
+		"OnConsoleFindAllReferencesOfType": [
+			"FindAllReferencesOfType"
+		],
+		"OnConsoleSelectCrosshair": [
+			"SelectCrosshair"
+		],
+		"OnConsoleGetRunningPackage": [
+			"GetRunningPackage"
+		],
+		"OnConsoleCreatePersistentForm": [
+			"CreateForm"
+		],
+		"OnConsoleDisposeOfPersistentForm": [
+			"DisposeForm"
+		],
+		"OnConsoleTrackForm": [
+			"TrackForm"
+		],
+		"OnConsoleUntrackForm": [
+			"UntrackForm"
+		],
+		"OnConsoleAddMagicEffect": [
+			"AddMagicEffect"
+		],
+		"OnConsoleGetRefAliases": [
+			"GetReferenceAliases",
+			"GetRefAliases"
+		],
+		"OnConsoleShowMenu": [
+			"ShowMenu"
+		],
+		"OnConsoleHideMenu": [
+			"HideMenu"
+		],
+		"OnConsoleToggleOpenSleepWaitMenu": [
+			"ToggleOpenSleepWaitMenu"
+		],
+		"OnConsoleVCSHelp": [
+			"VCSHelp",
+			"VCS",
+			"?"
+		],
+		"OnConsoleFormtypeHelp": [
+			"FormTypeHelp"
+		],
+		"OnConsoleReplaceArmorTextureSet": [
+			"ReplaceArmorTextureSet"
+		],
+		"OnConsoleReplaceFaceTextureSet": [
+			"ReplaceFaceTextureSet"
+		],
+		"OnConsoleReplaceSkinTextureSet": [
+			"ReplaceSkinTextureSet"
+		],
+		"OnConsoleGetHairColor": [
+			"GetHairColor",
+			"GetActorHairColor"
+		],
+		"OnConsoleSetHairColor": [
+			"SetHairColor",
+			"SetActorHairColor"
+		],
+		"OnConsoleGetHeadPartTextureSet": [
+			"GetHeadPartTextureSet"
+		],
+		"OnConsoleSetHeadPartTextureSet": [
+			"SetHeadPartTextureSet"
+		],
+		"OnConsoleGetSkinColor": [
+			"GetSkinColor"
+		],
+		"OnConsoleSetSkinColor": [
+			"SetSkinColor"
+		],
+		"OnConsoleSetSkinAlpha": [
+			"SetSkinAlpha"
+		],
+		"OnConsoleSetKey": [
+			"SetKey"
+		],
+		"OnConsoleMarkItemAsFavorite": [
+			"MarkFavorite"
+		],
+		"OnConsoleUnmarkItemAsFavorite": [
+			"UnmarkFavorite"
+		],
+		"OnConsoleSetSoundDescriptor": [
+			"SetSoundDescriptor"
+		],
+		"OnConsoleCreateSoundMarker": [
+			"CreateSoundMarker"
+		],
+		"OnConsolePlaySound": [
+			"PlaySound"
+		],
+		"OnConsolePlaySoundDescriptor": [
+			"PlaySoundDescriptor"
+		],
+		"OnConsoleClearMagicEffects": [
+			"ClearMagicEffects"
+		],
+		"OnConsoleCopyMagicEffects": [
+			"CopyMagicEffects"
+		],
+		"OnConsoleCopyAppearance": [
+			"CopyAppearance"
+		],
+		"OnConsoleSetSpellTomeSpell": [
+			"SetSpellTomeSpell"
+		],
+		"OnConsoleSetSpellAutoCalculate": [
+			"SetSpellAutoCalculate"
+		],
+		"OnConsoleSetSpellCostOverride": [
+			"SetSpellCostOverride"
+		],
+		"OnConsoleSetSpellChargeTime": [
+			"SetSpellChargeTime"
+		],
+		"OnConsoleSetSpellCastDuration": [
+			"SetSpellCastDuration"
+		],
+		"OnConsoleSetSpellRange": [
+			"SetSpellRange"
+		],
+		"OnConsoleSetSpellCastingPerk": [
+			"SetSpellCastingPerk"
+		],
+		"OnConsoleCreateColorForm": [
+			"CreateColorForm"
+		],
+		"OnConsoleTeleport": [
+			"Teleport",
+			"Tel"
+		],
+		"OnConsolePause": [
+			"SoundPause"
+		],
+		"OnConsoleUnpause": [
+			"SoundUnpause"
+		],
+		"OnConsoleMute": [
+			"SoundMute"
+		],
+		"OnConsoleUnmute": [
+			"SoundUnmute"
+		],
+		"OnConsoleSetVolume": [
+			"SetVolume"
+		],
+		"OnConsoleSaveEx": [
+			"SaveEx"
+		],
+		"OnConsoleGetIDFromConsoleRef": [
+			"GetIDFromConsoleRef"
+		],
+		"OnConsoleDelete": [
+			"Del",
+			"VCSDel"
+		],
+		"OnConsoleAttachPapyrusScript": [
+			"AttachPapyrusScript"
+		],
+		"OnConsoleGetFormDescription": [
+			"GetFormDescription"
+		],
+		"OnConsoleAddMagicEffectToSpell": [
+			"AddMagicEffectToSpell",
+			"AddMGEF"
+		],
+		"OnConsoleGetFormTypeAll": [
+			"GetFormTypeAll"
+		],
+		"OnConsoleCreateXMarkerRef": [
+			"CreateXMarkerRef"
+		],
+		"OnConsoleGetEnchantArt": [
+			"GetEnchantArt"
+		],
+		"OnConsoleGetCastingArt": [
+			"GetCastingArt"
+		],
+		"OnConsoleGetHitEffectArt": [
+			"GetHitEffectArt"
+		],
+		"OnConsoleGetEnchantShader": [
+			"GetEnchantShader"
+		],
+		"OnConsoleGetHitShader": [
+			"GetHitShader"
+		],
+		"OnConsoleSetEnchantArt": [
+			"SetEnchantArt"
+		],
+		"OnConsoleSetCastingArt": [
+			"SetCastingArt"
+		],
+		"OnConsoleSetHitEffectArt": [
+			"SetHitEffectArt"
+		],
+		"OnConsoleSetEnchantShader": [
+			"SetEnchantShader"
+		],
+		"OnConsoleSetHitShader": [
+			"SetHitShader"
+		],
+		"OnConsoleResetActor3D": [
+			"ResetActor3D"
+		],
+		"OnConsoleGetPackageIdles": [
+			"GetPackageIdles"
+		],
+		"OnConsoleAddPackageIdle": [
+			"AddPackageIdle"
+		],
+		"OnConsoleRemovePackageIdle": [
+			"RemovePackageIdle"
+		],
+		"OnConsoleGetFormIDFromEditorID": [
+			"GetFormIDFromEditorID"
+		],
+		"OnConsoleGetEDIDFromFormID": [
+			"GetEDIDFromFormID"
+		],
+		"OnConsoleGetFormModName": [
+			"GetFormModName"
+		],
+		"OnConsoleGetScriptsAttachedToActiveEffect": [
+			"GetScriptsAttachedToActiveEffect"
+		],
+		"OnConsoleDismissAllSummons": [
+			"DismissAllSummons"
+		],
+		"OnConsoleAddMagicEffectToEnchantment": [
+			"AddMagicEffectToEnchantment"
+		],
+		"OnConsoleRemoveMagicEffectFromEnchantment": [
+			"RemoveMagicEffectFromEnchantment"
+		],
+		"OnConsoleGetConditionList": [
+			"GetConditionList"
+		],
+		"OnConsoleSetConditionList": [
+			"GetConditionList"
+		],
+		"OnConsoleSleep": [
+			"Sleep"
+		],
+		"OnConsoleLaunchSpell": [
+			"LaunchSpell"
+		],
+		"OnConsoleGetMenuContainer": [
+			"GetMenuContainer"
+		],
+		"OnConsolerGetItemHealthPercent": [
+			"GetItemHealthPercent"
+		],
+		"OnConsolerSetItemHealthPercent": [
+			"SetItemHealthPercent"
+		],
+		"OnConsoleSetReferenceDisplayName": [
+			"SetReferenceDisplayName",
+			"SetRefDisplayName",
+			"SRDN"
+		],
+		"OnConsoleSetFormName": [
+			"SetFormName",
+			"SFN"
+		],
+		"OnConsoleEnchantObject": [
+			"EnchantObject"
+		],
+		"OnConsoleClearDestruction": [
+			"ClearDestruction"
+		],
+		"OnConsoleCCPlaceAroundReference": [
+			"PlaceAroundReference"
+		],
+		"OnConsoleCharGenSaveCharacter": [
+			"SaveCharacter"
+		],
+		"OnConsoleCharGenLoadCharacter": [
+			"LoadCharacter"
+		],
+		"OnConsoleRecordSignatureHelp": [
+			"RecordSignatureHelp",
+			"RecSigs"
+		],
+		"OnConsoleSpellGetEquipType": [
+			"GetEquipType"
+		],
+		"OnConsoleSpellSetEquipType": [
+			"SetEquipType"
+		],
+		"OnConsoleGetDialogueTarget": [
+			"GetDialogueTarget"
+		],
+		"OnConsoleForceFirstPerson": [
+			"ForceFirstPerson"
+		],
+		"OnConsoleForceThirdPerson": [
+			"ForceThirdPerson"
+		],
+		"OnConsoleSetPlayerAIDriven": [
+			"SetPlayerAIDriven"
+		],
+		"OnConsoleShowLimitedRaceMenu": [
+			"ShowLimitedRaceMenu"
+		],
+		"OnConsoleSetPlayersLastRiddenHorse": [
+			"SetPlayersLastRiddenHorse"
+		],
+		"OnConsoleTriggerScreenBlood": [
+			"TriggerScreenBlood"
+		],
+		"OnConsoleInputTapKey": [
+			"TapKey"
+		],
+		"OnConsoleInputHoldKey": [
+			"HoldKey"
+		],
+		"OnConsoleInputReleaseKey": [
+			"ReleaseKey"
+		],
+		"OnConsoleLocationGetKeywordData": [
+			"GetLocationKeywordData"
+		],
+		"OnConsoleLocationSetKeywordData": [
+			"SetLocationKeywordData"
+		],
+		"OnConsoleGetItemMaxCharge": [
+			"GetItemMaxCharge"
+		],
+		"OnConsoleGetItemCharge": [
+			"GetItemCharge"
+		],
+		"OnConsoleSetItemMaxCharge": [
+			"SetItemMaxCharge"
+		],
+		"OnConsoleSetItemCharge": [
+			"SetItemCharge"
+		],
+		"OnConsoleArtGetModelPath": [
+			"SetArtModelPath"
+		],
+		"OnConsoleArtSetModelPath": [
+			"SetArtModelPath"
+		],
+		"OnConsoleSetFogColor": [
+			"SetFogColor"
+		],
+		"OnConsoleSetFogPlanes": [
+			"SetFogPlanes"
+		],
+		"OnConsoleSetFogPower": [
+			"SetFogPower"
+		],
+		"OnConsoleSetPublic": [
+			"SetPublic"
+		],
+		"OnConsoleGetActorOwner": [
+			"GetActorOwner"
+		],
+		"OnConsoleGetFactionOwner": [
+			"GetFactionOwner"
+		],
+		"OnConsoleGetWaterLevel": [
+			"GetWaterLevel"
+		],
+		"OnConsoleGetActualWaterLevel": [
+			"GetActualWaterLevel"
+		],
+		"OnConsoleSlotHelp": [
+			"SlotHelp"
+		],
+		"OnConsoleGetSlotMask": [
+			"GetSlotMask"
+		],
+		"OnConsoleSetSlotMask": [
+			"SetSlotMask"
+		],
+		"OnConsoleAddSlotToMask": [
+			"AddSlotToMask"
+		],
+		"OnConsoleRemoveSlotFromMask": [
+			"RemoveSlotFromMask"
+		],
+		"OnConsoleGetMaskForSlot": [
+			"GetMaskForSlot"
+		],
+		"OnConsoleGetArmorModelPath": [
+			"GetArmorModelPath"
+		],
+		"OnConsoleSetArmorModelPath": [
+			"SetArmorModelPath"
+		],
+		"OnConsoleGetArmorIconPath": [
+			"GetArmorIconPath"
+		],
+		"OnConsoleSetArmorIconPath": [
+			"SetArmorIconPath"
+		],
+		"OnConsoleGetArmorMessageIconPath": [
+			"GetArmorMessageIconPath"
+		],
+		"OnConsoleSetArmorMessageIconPath": [
+			"SetArmorMessageIconPath"
+		],
+		"OnConsoleGetArmorWeightClass": [
+			"GetArmorWeightClass"
+		],
+		"OnConsoleSetWeightClass": [
+			"SetArmorWeightClass"
+		],
+		"OnConsoleSendVampirismStateChanged": [
+			"SendVampirismStateChanged"
+		],
+		"OnConsoleSendLycanthropyStateChanged": [
+			"SendLycanthropyStateChanged"
+		],
+		"OnConsoleStartSneaking": [
+			"StartSneaking"
+		],
+		"OnConsoleSetAttackActorOnSight": [
+			"SetAttackActorOnSight"
+		],
+		"OnConsoleSetDontMove": [
+			"ActorSetDontMove"
+		],
+		"OnConsoleShowGiftMenu": [
+			"ShowGiftMenu"
+		],
+		"OnConsoleStartCannibal": [
+			"StartCannibal"
+		],
+		"OnConsoleGetActorbaseOutfit": [
+			"GetActorbaseOutfit",
+			"GetOutfit",
+			"GetABOutfit"
+		],
+		"OnConsoleSetOutfit": [
+			"SetActorOutfit",
+			"SetOutfit",
+			"SetABOutfit"
+		],
+		"OnConsoleUnsetOutfit": [
+			"UnsetActorOutfit",
+			"UnsetOutfit"
+		],
+		"OnConsoleVCSEquipItemEx": [
+			"VCSEquipItem",
+			"vcsei",
+			"EquipItemEx"
+		],
+		"OnConsoleVCSUnequipItemEx": [
+			"VCSUnequipItem",
+			"vcsui",
+			"UnequipItemEx"
+		],
+		"OnConsoleVCSEquipShout": [
+			"VCSEquipShout",
+			"vcsesh",
+			"EquipShoutEx"
+		],
+		"OnConsoleVCSEquipSpell": [
+			"VCSEquipSpell",
+			"vcsesp",
+			"EquipSpellEx"
+		],
+		"OnConsoleSetRestrained": [
+			"SetRestrained"
+		],
+		"OnConsoleRemoveAllArmorRefOverrides": [
+			"RemoveAllArmorRefOverrides",
+			"RemoveAllArmorReferenceOverrides",
+			"RemAllArmorRefOverrides"
+		],
+		"OnConsoleRemoveAllPerks": [
+			"RemoveAllPerks",
+			"RemPerks"
+		],
+		"OnConsoleRemoveAllVisiblePerks": [
+			"RemoveAllVisiblePerks",
+			"RemVisPerks"
+		],
+		"OnConsoleRemoveAllSpells": [
+			"RemoveAllSpells",
+			"RemSpells"
+		],
+		"OnConsoleRGBToInt": [
+			"RGBToInt"
+		],
+		"OnConsoleGetItemUniqueID": [
+			"GetItemUniqueID",
+			"GetItemUID"
+		],
+		"OnConsoleGetObjectUniqueID": [
+			"GetObjectUniqueID",
+			"GetObjectUID"
+		],
+		"OnConsoleSetItemDyeColor": [
+			"SetItemDyeColor",
+			"SetItemDye"
+		],
+		"OnConsoleGetItemDyeColor": [
+			"GetItemDyeColor",
+			"GetItemDye"
+		],
+		"OnConsoleClearItemDyeColor": [
+			"ClearItemDyeColor",
+			"ClearItemDye"
+		],
+		"OnConsoleUpdateItemDyeColor": [
+			"UpdateItemDyeColor",
+			"UpdateItemDye"
+		],
+		"OnConsoleSetItemTextureLayerColor": [
+			"SetItemTextureLayerColor",
+			"SetITLColor"
+		],
+		"OnConsoleGetItemTextureLayerColor": [
+			"GetItemTextureLayerColor",
+			"GetITLColor"
+		],
+		"OnConsoleClearItemTextureLayerColor": [
+			"ClearItemTextureLayerColor",
+			"ClearITLColor"
+		],
+		"OnConsoleSetItemTextureLayerType": [
+			"SetItemTextureLayerType",
+			"SetITLType"
+		],
+		"OnConsoleGetItemTextureLayerType": [
+			"GetItemTextureLayerType",
+			"GetITLType"
+		],
+		"OnConsoleClearItemTextureLayerType": [
+			"ClearItemTextureLayerType",
+			"ClearITLType"
+		],
+		"OnConsoleSetItemTextureLayerTexture": [
+			"SetItemTextureLayerTexture"
+		],
+		"OnConsoleGetItemTextureLayerTexture": [
+			"GetItemTextureLayerTexture"
+		],
+		"OnConsoleClearItemTextureLayerTexture": [
+			"ClearItemTextureLayerTexture"
+		],
+		"OnConsoleSetItemTextureLayerBlendMode": [
+			"SetItemTextureLayerBlendMode"
+		],
+		"OnConsoleGetItemTextureLayerBlendMode": [
+			"GetItemTextureLayerBlendMode"
+		],
+		"OnConsoleClearItemTextureLayerBlendMode": [
+			"ClearItemTextureLayerBlendMode"
+		],
+		"OnConsoleUpdateItemTextureLayers": [
+			"UpdateItemTextureLayers"
+		],
+		"OnConsoleRevertOverlays": [
+			"RevertOverlays"
+		],
+		"OnConsoleAddWeaponOverrideTextureSet": [
+			"AddWeaponOverrideTextureSet"
+		],
+		"OnConsoleApplyWeaponOverrides": [
+			"ApplyWeaponOverrides"
+		],
+		"OnConsoleAddSkinOverrideTextureSet": [
+			"AddSkinOverrideTextureSet"
+		],
+		"OnConsoleApplySkinOverrides": [
+			"ApplySkinOverrides"
+		],
+		"OnConsoleRemoveAAOverride": [
+			"RemoveAAOverride"
+		],
+		"OnConsoleStartDraggingObject": [
+			"StartDraggingObject"
+		],
+		"OnConsolePrintArgsAsStrings": [
+			"PrintArgsAsStrings"
+		],
+		"OnConsoleAddPackageOverride": [
+			"AddPackageOverride"
+		],
+		"OnConsoleRemovePackageOverride": [
+			"RemovePackageOverride"
+		],
+		"OnConsoleCountPackageOverride": [
+			"CountPackageOverride"
+		],
+		"OnConsoleClearPackageOverride": [
+			"ClearPackageOverride"
+		],
+		"OnConsoleRemoveAllPackageOverride": [
+			"RemoveAllPackageOverride"
+		],
+		"OnConsoleSetChargeTimeAll": [
+			"SetChargeTimeAll"
+		],
+		"OnConsoleSetSpellFlag": [
+			"SetSpellFlag"
+		],
+		"OnConsoleSpellFlagHelp": [
+			"SpellFlagHelp"
+		],
+		"OnConsoleGetWorldFOV": [
+			"GetWorldFOV"
+		],
+		"OnConsoleSetWorldFOV": [
+			"SetWorldFOV"
+		],
+		"OnConsoleGetFirstPersonFOV": [
+			"GetFirstPersonFOV"
+		],
+		"OnConsoleSetFirstPersonFOV": [
+			"SetFirstPersonFOV"
+		],
+		"OnConsoleSetClipBoardText": [
+			"SetClipBoardText",
+			"sc"
+		],
+		"OnConsoleSetDescription": [
+			"SetDescription"
+		],
+		"OnConsoleResetDescription": [
+			"ResetDescription"
+		],
+		"OnConsolePackageGetTemplate": [
+			"GetPackageTemplate"
+		],
+		"OnConsoleGetSeasonOverride": [
+			"GetSeasonOverride"
+		],
+		"OnConsoleSetSeasonOverride": [
+			"SetSeasonOverride"
+		],
+		"OnConsoleClearSeasonOverride": [
+			"ClearSeasonOverride"
+		],
+		"OnConsoleMenuHelp": [
+			"MenuHelp"
+		],
+		"OnConsoleOpenCustomMenu": [
+			"OpenCustomMenu"
+		],
+		"OnConsoleCloseCustomMenu": [
+			"CloseCustomMenu"
+		],
+		"OnConsoleCreateUICallback": [
+			"UICallbackCreate"
+		],
+		"OnConsoleVampireFeed": [
+			"VampireFeed"
+		],
+		"OnConsoleBlockActivation": [
+			"BlockActivation"
+		],
+		"OnConsoleVCSAddPerk": [
+			"VCSAddPerk",
+			"vcsap"
+		],
+		"OnConsoleVCSRemovePerk": [
+			"VCSRemovePerk",
+			"vcsrp"
+		],
+		"OnConsoleVCSAddBasePerk": [
+			"AddBasePerk"
+		],
+		"OnConsoleVCSAddBaseSpell": [
+			"AddBaseSpell"
+		],
+		"OnConsoleVCSRemoveBasePerk": [
+			"RemoveBasePerk"
+		],
+		"OnConsoleVCSRemoveBaseSpell": [
+			"RemoveBaseSpell"
+		],
+		"OnConsoleAllowPCDialogue": [
+			"AllowPCDialogue"
+		],
+		"OnConsoleMakePlayerFriend": [
+			"MakePlayerFriend"
+		],
+		"OnConsolePreventDetection": [
+			"PreventDetection"
+		],
+		"OnConsoleRegenerateHead": [
+			"RegenerateHead"
+		],
+		"OnConsoleKillSilent": [
+			"KillSilent"
+		],
+		"OnConsoleKillEssential": [
+			"KillEssential",
+			"ForceKill"
+		],
+		"OnConsolePathToReference": [
+			"PathToReference"
+		],
+		"OnConsoleClearForcedMovement": [
+			"ClearForcedMovement"
+		],
+		"OnConsoleSetUnconscious": [
+			"SetUnconscious"
+		],
+		"OnConsoleGetNthHeadPart": [
+			"GetNthHeadPart"
+		],
+		"OnConsoleSetNthHeadPart": [
+			"SetNthHeadPart"
+		],
+		"OnConsoleGetDoorDestination": [
+			"GetDoorDestination",
+			"GetDestination"
+		],
+		"OnConsoleSetDoorDestination": [
+			"SetDoorDestination",
+			"SetDestination"
+		],
+		"OnConsoleDuplicate": [
+			"Duplicate"
+		],
+		"OnConsoleSetLinkedRef": [
+			"SetLinkedRef"
+		],
+		"OnConsoleRemoveAllItems": [
+			"RemAllItems"
+		],
+		"OnConsoleGetAllFormsWithScriptAttached": [
+			"GetFormsWithScriptAttached"
+		],
+		"OnConsoleGetAllAliasesWithScriptAttached": [
+			"GetAliasesWithScriptAttached"
+		],
+		"OnConsoleGetAllRefAliasesWithScriptAttached": [
+			"GetRefAliasesWithScriptAttached"
+		],
+		"OnConsoleGetLastMenuOpened": [
+			"GetLastMenuOpened"
+		],
+		"OnConsoleSkillHelp": [
+			"SkillHelp"
+		],
+		"OnConsoleCreateFormList": [
+			"CreateFormList"
+		],
+		"OnConsoleCreateKeyword": [
+			"CreateKeyword"
+		],
+		"OnConsoleCreateConstructibleObject": [
+			"CreateConstructibleObject"
+		],
+		"OnConsoleCreateTextureSet": [
+			"CreateTextureSet"
+		],
+		"OnConsoleGetAllConstructibleObjects": [
+			"GetAllConstructibleObjects"
+		],
+		"OnConsoleGetAllActorPlayableSpells": [
+			"GetPlayableSpells",
+			"GetActorPlayableSpells"
+		],
+		"OnConsoleGetAshPileLinkedRef": [
+			"GetAshPileLinkedRef"
+		],
+		"OnConsoleRemoveAllInventoryEventFilters": [
+			"RemoveAllInventoryEventFilters"
+		],
+		"OnConsoleSetActorOwner": [
+			"SetActorOwner"
+		],
+		"OnConsoleSetHarvested": [
+			"SetHarvested"
+		],
+		"OnConsoleSetOpen": [
+			"SetOpen"
+		],
+		"OnConsoleGetCurrentScene": [
+			"GetCurrentScene"
+		],
+		"OnConsoleFreezeActor": [
+			"FreezeActor"
+		],
+		"OnConsoleGetMaterialType": [
+			"GetMaterialType"
+		],
+		"OnConsoleGetActiveGamebryoAnimation": [
+			"GetActiveGamebryoAnimation"
+		],
+		"OnConsoleNiOverrideHelp": [
+			"NiOverrideHelp"
+		],
+		"OnConsoleSetHeadPartValidRaces": [
+			"SetHDPTValidRaces",
+			"SetHeadpartValidRaces"
+		],
+		"OnConsoleGetKeywords": [
+			"GetKeywords"
+		],
+		"OnConsoleLearnEnchantment": [
+			"LearnEnchantment"
+		],
+		"OnConsoleEnableSurvivalFeature": [
+			"EnableSurvivalFeature"
+		],
+		"OnConsoleDisableSurvivalFeature": [
+			"DisableSurvivalFeature"
+		],
+		"OnConsoleRestoreColdLevel": [
+			"RestoreColdLevel"
+		],
+		"OnConsoleRestoreHungerLevel": [
+			"RestoreHungerLevel"
+		],
+		"OnConsoleRestoreExhaustionLevel": [
+			"RestoreExhaustionLevel"
+		],
+		"OnConsoleGetAllRefsInGrid": [
+			"GetAllRefsInGrid"
+		],
+		"OnConsoleGetButtonForDXScanCode": [
+			"GetButtonForDXScanCode"
+		],
+		"OnConsoleCalmActor": [
+			"Calm",
+			"CalmActor"
+		],
+		"OnConsoleGetQuality": [
+			"GetQuality"
+		],
+		"OnConsoleSetQuality": [
+			"SetQuality"
+		],
+		"OnConsoleCastEnchantment": [
+			"CastEnchantment"
+		],
+		"OnConsoleCastPotion": [
+			"CastPotion"
+		],
+		"OnConsoleCastIngredient": [
+			"CastIngredient"
+		],
+		"OnConsoleSetRefAsNoAIAcquire": [
+			"SetRefAsNoAIAcquire"
+		],
+		"OnConsoleTrainWith": [
+			"TrainWith"
+		],
+		"OnConsoleQueryStat": [
+			"QueryStat"
+		],
+		"OnConsoleSetMiscStat": [
+			"SetMiscStat"
+		],
+		"OnConsoleHeadpartHelp": [
+			"HeadpartHelp"
+		],
+		"OnConsoleCollisionHelp": [
+			"CollisionHelp"
+		],
+		"OnConsoleFactionFlagHelp": [
+			"FactionFlagHelp"
+		],
+		"OnConsoleGetSkillLegendaryLevel": [
+			"GetSkillLegendaryLevel"
+		],
+		"OnConsoleSetSkillLegendaryLevel": [
+			"SetSkillLegendaryLevel"
+		],
+		"OnConsoleGetSlowTimeMult": [
+			"GetSlowTimeMult"
+		],
+		"OnConsoleSetSlowTimeMult": [
+			"SetSlowTimeMult"
+		],
+		"OnConsoleApplyMeleeHit": [
+			"ApplyMeleeHit"
+		],
+		"OnConsoleApplyHit": [
+			"ApplyHit"
+		],
+		"OnConsoleTemperEquipment": [
+			"TemperEquipment",
+			"Temper"
+		],
+		"OnConsoleTemperWornEquipment": [
+			"TemperWornEquipment",
+			"TemperWorn"
+		],
+		"OnConsoleMagicEffectHelp": [
+			"MagicEffectHelp"
+		],
+		"OnConsoleGetFootstepSet": [
+			"GetFootstepSet"
+		],
+		"OnConsoleSetFootstepSet": [
+			"SetFootstepSet"
+		],
+		"OnConsoleRaceHelp": [
+			"RaceHelp"
+		],
+		"OnConsoleSetRecordFlag": [
+			"SetRecordFlag"
+		],
+		"OnConsoleClearRecordFlag": [
+			"ClearRecordFlag"
+		],
+		"OnConsoleIsRecordFlagSet": [
+			"IsRecordFlagSet"
+		],
+		"OnConsoleFormRecordHelp": [
+			"FormRecordHelp"
+		],
+		"OnConsoleGetRace": [
+			"GetRace"
+		],
+		"OnConsoleFormHelp": [
+			"FormHelp"
+		],
+		"OnConsoleGetActiveQuests": [
+			"GetActiveQuests"
+		],
+		"OnConsolePlayDebugShader": [
+			"PlayDebugShader"
+		],
+		"OnConsoleGetMapMarkerIconType": [
+			"GetMapMarkerIconType"
+		],
+		"OnConsoleSetMapMarkerIconType": [
+			"SetMapMarkerIconType"
+		],
+		"OnConsoleGetMapMarkerName": [
+			"GetMapMarkerName"
+		],
+		"OnConsoleSetMapMarkerName": [
+			"SetMapMarkerName"
+		],
+		"OnConsoleGetCellOrWorldSpaceOriginForRef": [
+			"GetCellOrWorldSpaceOriginForRef"
+		],
+		"OnConsoleSetCellOrWorldSpaceOriginForRef": [
+			"SetCellOrWorldSpaceOriginForRef"
+		],
+		"OnConsoleGetCurrentMapMarkerRefs": [
+			"GetCurrentMapMarkerRefs"
+		],
+		"OnConsoleGetAllMapMarkerRefs": [
+			"GetAllMapMarkerRefs"
+		],
+		"OnConsoleHasNodeOverride": [
+			"HasNodeOverride"
+		],
+		"OnConsoleAddNodeOverrideFloat": [
+			"AddNodeOverrideFloat"
+		],
+		"OnConsoleAddNodeOverrideInt": [
+			"AddNodeOverrideInt"
+		],
+		"OnConsoleAddNodeOverrideBool": [
+			"AddNodeOverrideBool"
+		],
+		"OnConsoleAddNodeOverrideString": [
+			"AddNodeOverrideString"
+		],
+		"OnConsoleAddNodeOverrideTextureSet": [
+			"AddNodeOverrideTextureSet"
+		],
+		"OnConsoleGetNodeOverrideFloat": [
+			"GetNodeOverrideFloat"
+		],
+		"OnConsoleGetNodeOverrideInt": [
+			"GetNodeOverrideInt"
+		],
+		"OnConsoleGetNodeOverrideBool": [
+			"GetNodeOverrideBool"
+		],
+		"OnConsoleGetNodeOverrideString": [
+			"GetNodeOverrideString"
+		],
+		"OnConsoleGetNodeOverrideTextureSet": [
+			"GetNodeOverrideTextureSet"
+		],
+		"OnConsoleGetNodePropertyFloat": [
+			"GetNodePropertyFloat"
+		],
+		"OnConsoleGetNodePropertyInt": [
+			"GetNodePropertyInt"
+		],
+		"OnConsoleGetNodePropertyBool": [
+			"GetNodePropertyBool"
+		],
+		"OnConsoleGetNodePropertyString": [
+			"GetNodePropertyString"
+		],
+		"OnConsoleApplyNodeOverrides": [
+			"ApplyNodeOverrides"
+		],
+		"OnConsoleDrawWeapon": [
+			"DrawWeapon"
+		],
+		"OnConsoleSheatheWeapon": [
+			"SheatheWeapon"
+		],
+		"OnConsoleIdleHelp": [
+			"IdleHelp"
+		],
+		"OnConsolePlayIdle": [
+			"PlayIdle",
+			"PI"
+		],
+		"OnConsolePlayIdleWithTarget": [
+			"PlayIdleWithTarget",
+			"PIWT"
+		],
+		"OnConsolePlaySubGraphAnimation": [
+			"PlaySubGraphAnimation",
+			"PSGA"
+		],
+		"OnConsoleSetShaderType": [
+			"SetShaderType"
+		],
+		"OnConsoleIsScriptAttachedToForm": [
+			"IsScriptAttachedToForm"
+		],
+		"OnConsoleGetScriptsAttachedToForm": [
+			"GetScriptsAttachedToForm"
+		],
+		"OnConsoleRemoveMagicEffectFromSpell": [
+			"RemoveMagicEffectFromSpell",
+			"RMGEF"
+		],
+		"OnConsoleGetSpellType": [
+			"GetSpellType"
+		],
+		"OnConsoleSetSpellCastingType": [
+			"SetSpellCastingType"
+		],
+		"OnConsoleSetSpellDeliveryType": [
+			"SetSpellDeliveryType"
+		],
+		"OnConsoleSetSpellType": [
+			"SetSpellType"
+		],
+		"OnConsoleSetSpellMagicEffect": [
+			"SetSpellMagicEffect"
+		],
+		"OnConsoleGetLastPlayerActivatedRef": [
+			"GetLastPlayerActivatedRef"
+		],
+		"OnConsoleGetLastPlayerMenuActivatedRef": [
+			"GetLastPlayerMenuActivatedRef"
+		],
+		"OnConsoleSetObjectRefFlag": [
+			"SetObjectRefFlag"
+		],
+		"OnConsoleGetNthOutfitPart": [
+			"GetNthOutfitPart"
+		],
+		"OnConsoleGetActorbaseHeight": [
+			"GetActorbaseHeight",
+			"GetABHeight"
+		],
+		"OnConsoleSetActorbaseHeight": [
+			"SetActorbaseHeight",
+			"SetABHeight"
+		],
+		"OnConsoleGetCurrentMusicType": [
+			"GetCurrentMusicType"
+		],
+		"OnConsoleGetNumberOfTracksInMusicType": [
+			"GetNumberOfTracksInMusicType"
+		],
+		"OnConsoleGetMusicTypeTrackIndex": [
+			"GetMusicTypeTrackIndex"
+		],
+		"OnConsoleSetMusicTypeTrackIndex": [
+			"SetMusicTypeTrackIndex"
+		],
+		"OnConsoleGetMusicTypePriority": [
+			"GetMusicTypePriority"
+		],
+		"OnConsoleSetMusicTypePriority": [
+			"SetMusicTypePriority"
+		],
+		"OnConsoleGetMusicTypeStatus": [
+			"GetMusicTypeStatus"
+		],
+		"OnConsoleDispelEffect": [
+			"DispelEffect"
+		],
+		"OnConsoleBlendColorWithSkinTone": [
+			"BlendColorWithSkinTone"
+		],
+		"OnConsoleGetEquippedArmorInSlot": [
+			"GetEquippedArmorInSlot",
+			"GetEquippedArmor"
+		],
+		"OnConsoleSetHeadpartAlpha": [
+			"SetHeadpartAlpha"
+		],
+		"OnConsoleSetActorRefraction": [
+			"SetActorRefraction"
+		],
+		"OnConsoleRevertSkinOverlays": [
+			"OnConsoeRevertSkinOverlays"
+		],
+		"OnConsoleRevertHeadOverlays": [
+			"RevertHeadOverlays"
+		],
+		"OnConsoleGetEquippedShout": [
+			"GetEquippedShout"
+		],
+		"OnConsoleGetEquippedShield": [
+			"GetEquippedShield"
+		],
+		"OnConsoleGetEquippedWeapon": [
+			"GetEquippedWeapon"
+		],
+		"OnConsoleGetEquippedSpell": [
+			"GetEquippedSpell"
+		],
+		"OnConsoleGetNthTexturePath": [
+			"GetNthTexturePath"
+		],
+		"OnConsoleSetNthTexturePath": [
+			"SetNthTexturePath"
+		],
+		"OnConsoleQueueNiNodeUpdate": [
+			"QueueNiNodeUpdate",
+			"QNNU"
+		],
+		"OnConsoleGetABFaceTextureSet": [
+			"GetABFaceTextureSet",
+			"GetActorbaseFaceTextureSet"
+		],
+		"OnConsoleSetABFaceTextureSet": [
+			"SetABFaceTextureSet",
+			"SetActorbaseFaceTextureSet"
+		],
+		"OnConsoleGetActorbaseSkin": [
+			"GetABSkin",
+			"GetActorbaseSkin",
+			"GetSkin"
+		],
+		"OnConsoleSetActorbaseSkin": [
+			"SetSkin",
+			"SetABSkin",
+			"SetActorbaseSkin"
+		],
+		"OnConsoleGetActorbaseSkinFar": [
+			"GetSkinFar",
+			"GetABSkinFar",
+			"GetActorbaseSkinFar"
+		],
+		"OnConsoleSetActorbaseSkinFar": [
+			"SetSkinFar",
+			"SetABSkinFar",
+			"SetActorbaseSkinFar"
+		],
+		"OnConsoleGetSpellCastTime": [
+			"GetSpellCastTime"
+		],
+		"OnConsoleGetSpellMagicEffects": [
+			"GetSpellMagicEffects",
+			"GetSpellMGEF"
+		],
+		"OnConsoleGetSpellEquipType": [
+			"GetSpellEquipType"
+		],
+		"OnConsoleSetSpellEquipType": [
+			"SetSpellEquipType"
+		],
+		"OnConsoleCopySpellEquipType": [
+			"CopySpellEquipType"
+		],
+		"OnConsoleCombineSpells": [
+			"CombineSpells"
+		],
+		"OnConsoleRemoveFormFromFormlist": [
+			"RemoveFormFromFormlist",
+			"RemFromFLST"
+		],
+		"OnConsoleGetMagicEffectSound": [
+			"GetMagicEffectSound",
+			"GetMGEFSound"
+		],
+		"OnConsoleSetMagicEffectSound": [
+			"SetMagicEffectSound",
+			"SetMGEFSound"
+		],
+		"OnConsoleGetOutfitNumParts": [
+			"GetOutfitNumParts"
+		],
+		"OnConsoleGetOutfitNthPart": [
+			"GetOutfitNthPart"
+		],
+		"OnConsoleAddFormToLeveledItem": [
+			"AddFormToLeveledItem"
+		],
+		"OnConsoleRevertLeveledItem": [
+			"RevertLeveledItem"
+		],
+		"OnConsoleGetLeveledItemChanceNone": [
+			"GetLeveledItemChanceNone"
+		],
+		"OnConsoleSetLeveledItemChanceNone": [
+			"SetLeveledItemChanceNone"
+		],
+		"OnConsoleGetLeveledItemChanceGlobal": [
+			"GetLeveledItemChanceGlobal"
+		],
+		"OnConsoleSetLeveledItemChanceGlobal": [
+			"SetLeveledItemChanceGlobal"
+		],
+		"OnConsoleGetLeveledItemNumForms": [
+			"GetLeveledItemNumForms"
+		],
+		"OnConsoleGetLeveledItemNthForm": [
+			"GetLeveledItemNthForm"
+		],
+		"OnConsoleGetLeveledItemthLevel": [
+			"GetLeveledItemthLevel"
+		],
+		"OnConsoleSetLeveledItemNthLevel": [
+			"SetLeveledItemNthLevel"
+		],
+		"OnConsoleGetLeveledItemNthCount": [
+			"GetLeveledItemNthCount"
+		],
+		"OnConsoleSetLeveledItemNthCount": [
+			"SetLeveledItemNthCount"
+		],
+		"OnConsolePlaceDoor": [
+			"PlaceDoor"
+		],
+		"OnConsoleSetActorbaseOutfit": [
+			"SetActorbaseOutfit",
+			"SetABOutfit"
+		],
+		"OnConsoleUnsetActorbaseOutfit": [
+			"UnsetActorbaseOutfit",
+			"UnsetABOutfit"
+		],
+		"OnConsoleGetWorldModelPath": [
+			"GetWorldModelPath",
+			"GetWorldModel"
+		],
+		"OnConsoleSetWorldModelPath": [
+			"SetWorldModelPath",
+			"SetWorldModel"
+		],
+		"OnConsoleCopyWorldModel": [
+			"CopyWorldModelPath",
+			"CopyWorldModel"
+		],
+		"OnConsoleGetArmorEnchantment": [
+			"GetArmorEnchantment"
+		],
+		"OnConsoleGetWeaponEnchantment": [
+			"GetWeaponEnchantment"
+		],
+		"OnConsoleHasSkinOverride": [
+			"HasSkinOverride"
+		],
+		"OnConsoleAddSkinOverrideFloat": [
+			"AddSkinOverrideFloat"
+		],
+		"OnConsoleAddSkinOverrideInt": [
+			"AddSkinOverrideInt"
+		],
+		"OnConsoleAddSkinOverrideBool": [
+			"AddSkinOverrideBool"
+		],
+		"OnConsoleAddSkinOverrideString": [
+			"AddSkinOverrideString"
+		],
+		"OnConsoleGetSkinOverrideTextureSet": [
+			"GetSkinOverrideTextureSet"
+		],
+		"OnConsoleGetSkinOverrideFloat": [
+			"GetSkinOverrideFloat"
+		],
+		"OnConsoleGetSkinOverrideInt": [
+			"GetSkinOverrideInt"
+		],
+		"OnConsoleGetSkinOverrideBool": [
+			"GetSkinOverrideBool"
+		],
+		"OnConsoleGetSkinOverrideString": [
+			"GetSkinOverrideString"
+		],
+		"OnConsoleGetSkinPropertyFloat": [
+			"GetSkinPropertyFloat"
+		],
+		"OnConsoleGetSkinPropertyInt": [
+			"GetSkinPropertyInt"
+		],
+		"OnConsoleGetSkinPropertyBool": [
+			"GetSkinPropertyBool"
+		],
+		"OnConsoleGetSkinPropertyString": [
+			"GetSkinPropertyString"
+		],
+		"OnConsoleGetABNumHeadParts": [
+			"GetABNumHeadParts",
+			"GetNumHeadParts"
+		],
+		"OnConsoleGetABIndexOfHeadPartByType": [
+			"GetABIndexOfHeadPartByType"
+		],
+		"OnConsoleGetABNumOverlayHeadParts": [
+			"GetABNumOverlayHeadParts"
+		],
+		"OnConsoleGetABNthOverlayHeadPart": [
+			"GetABNthOverlayHeadPart"
+		],
+		"OnConsoleGetABIndexOfOverlayHeadPartByType": [
+			"GetABIndexOfOverlayHeadPartByType"
+		],
+		"OnConsoleGetABFaceMorph": [
+			"GetABFaceMorph"
+		],
+		"OnConsoleSetABFaceMorph": [
+			"SetABFaceMorph"
+		],
+		"OnConsoleGetABFacePreset": [
+			"GetABFacePreset"
+		],
+		"OnConsoleSetABFacePreset": [
+			"SetABFacePreset"
+		],
+		"OnConsoleGetABSkinFar": [
+			"GetABSkinFar"
+		],
+		"OnConsoleSetABSkinFar": [
+			"SetABSkinFar"
+		],
+		"OnConsoleGetABTemplate": [
+			"GetABTemplate"
+		],
+		"OnConsoleSetAutoLock": [
+			"SetAutoLock"
+		],
+		"OnConsoleRemoveAllNodeRefOverrides": [
+			"RemoveAllNodeRefOverrides",
+			"RemoveAllNodeReferenceOverrides",
+			"RemAllNodeRefOverrides"
+		],
+		"OnConsoleRemoveAllSkinRefOverrides": [
+			"RemoveAllSkinRefOverrides",
+			"RemoveAllSkinReferenceOverrides",
+			"RemAllSkinRefOverrides"
+		],
+		"OnConsoleRemoveAllWeaponRefOverrides": [
+			"RemoveAllWeaponRefOverrides",
+			"RemoveAllWeaponReferenceOverrides",
+			"RemAllWeaponRefOverrides"
+		],
+		"OnConsoleGetTextureSetNumPaths": [
+			"GetTextureSetNumPaths"
+		],
+		"OnConsoleGetMagicEffectLight": [
+			"GetMagicEffectLight",
+			"GetMGEFLight"
+		],
+		"OnConsoleSetMagicEffectLight": [
+			"SetMagicEffectLight",
+			"SetMGEFLight"
+		],
+		"OnConsoleAddKeyword": [
+			"AddKeyword"
+		],
+		"OnConsoleRemoveKeyword": [
+			"RemoveKeyword"
+		],
+		"OnConsoleReplaceKeyword": [
+			"ReplaceKeyword"
+		],
+		"OnConsoleGetTreeIngredient": [
+			"GetTreeIngredient"
+		],
+		"OnConsoleSetTreeIngredient": [
+			"SetTreeIngredient"
+		],
+		"OnConsoleIsKeyPressed": [
+			"IsKeyPressed"
+		],
+		"OnConsoleGetNumKeysPressed": [
+			"GetNumKeysPressed"
+		],
+		"OnConsoleGetNthKeyPressed": [
+			"GetNthKeyPressed"
+		],
+		"OnConsoleGetMappedKey": [
+			"GetMappedKey"
+		],
+		"OnConsoleGetMappedControl": [
+			"GetMappedControl"
+		],
+		"OnConsolePrecacheCharGenClear": [
+			"PrecacheCharGenClear"
+		],
+		"OnConsoleUpdateThirdPerson": [
+			"UpdateThirdPerson"
+		],
+		"OnConsoleModObjectiveGlobal": [
+			"ModObjectiveGlobal"
+		],
+		"OnConsoleGetQuestAliases": [
+			"GetQuestAliases"
+		],
+		"OnConsoleGetMagicEffectAssociatedSkill": [
+			"GetMagicEffectAssociatedSkill",
+			"GetMGEFAssociatedSkill"
+		],
+		"OnConsoleSetMagicEffectAssociatedSkill": [
+			"SetMagicEffectAssociatedSkill",
+			"SetMGEFAssociatedSkill"
+		],
+		"OnConsoleGetMagicEffectResistance": [
+			"GetMagicEffectResistance",
+			"GetMGEFResistance"
+		],
+		"OnConsoleSetMagicEffectResistance": [
+			"SetMagicEffectResistance",
+			"SetMGEFResistance"
+		],
+		"OnConsoleGetMagicEffectImpactDataSet": [
+			"GetMagicEffectImpactDataSet",
+			"GetMGEFImpactDataSet"
+		],
+		"OnConsoleSetMagicEffectImpactDataSet": [
+			"SetMagicEffectImpactDataSet",
+			"SetMGEFImpactDataSet"
+		],
+		"OnConsoleGetMagicEffectImageSpaceMod": [
+			"GetMagicEffectImageSpaceMod",
+			"GetMGEFIMOD"
+		],
+		"OnConsoleSetMagicEffectImageSpaceMod": [
+			"SetMagicEffectImageSpaceMod",
+			"SetMGEFIMOD"
+		],
+		"OnConsoleGetMagicEffectPerk": [
+			"GetMagicEffectPerk",
+			"GetMGEFPerk"
+		],
+		"OnConsoleSetMagicEffectPerk": [
+			"SetMagicEffectPerk",
+			"SetMGEFPerk"
+		],
+		"OnConsoleGetMagicEffectEquipAbility": [
+			"GetMagicEffectEquipAbility",
+			"GetMGEFEquipAbility"
+		],
+		"OnConsoleSetMagicEffectEquipAbility": [
+			"SetMagicEffectEquipAbility",
+			"SetMGEFEquipAbility"
+		],
+		"OnConsoleSetEffectFlag": [
+			"SetEffectFlag"
+		],
+		"OnConsoleClearEffectFlag": [
+			"ClearEffectFlag"
+		],
+		"OnConsoleIsEffectFlagSet": [
+			"IsEffectFlagSet"
+		],
+		"OnConsoleGetMagicEffectExplosion": [
+			"GetMagicEffectExplosion"
+		],
+		"OnConsoleSetMagicEffectExplosion": [
+			"SetMagicEffectExplosion"
+		],
+		"OnConsoleGetMagicEffectProjectile": [
+			"GetMagicEffectProjectile"
+		],
+		"OnConsoleSetMagicEffectProjectile": [
+			"SetMagicEffectProjectile"
+		],
+		"OnConsoleGetMagicEffectSkillLevel": [
+			"GetMagicEffectSkillLevel"
+		],
+		"OnConsoleSetMagicEffectSkillLevel": [
+			"SetMagicEffectSkillLevel"
+		],
+		"OnConsoleGetMagicEffectBaseCost": [
+			"GetMagicEffectBaseCost"
+		],
+		"OnConsoleSetMagicEffectBaseCost": [
+			"SetMagicEffectBaseCost"
+		],
+		"OnConsoleGetMagicEffectCastTime": [
+			"GetMagicEffectCastTime"
+		],
+		"OnConsoleSetMagicEffectCastTime": [
+			"SetMagicEffectCastTime"
+		],
+		"OnConsoleGetMagicEffectArea": [
+			"GetMagicEffectArea"
+		],
+		"OnConsoleSetMagicEffectArea": [
+			"SetMagicEffectArea"
+		],
+		"OnConsoleGetIngredientNthEffectArea": [
+			"GetIngredientNthEffectArea"
+		],
+		"OnConsoleSetIngredientNthEffectArea": [
+			"SetIngredientNthEffectArea"
+		],
+		"OnConsoleGetIngredientNthEffectMagnitude": [
+			"GetIngredientNthEffectMagnitude"
+		],
+		"OnConsoleSetIngredientNthEffectMagnitude": [
+			"SetIngredientNthEffectMagnitude"
+		],
+		"OnConsoleGetIngredientNthEffectDuration": [
+			"GetIngredientNthEffectDuration"
+		],
+		"OnConsoleSetIngredientNthEffectDuration": [
+			"SetIngredientNthEffectDuration"
+		],
+		"OnConsoleSetRaceFlag": [
+			"SetRaceFlag"
+		],
+		"OnConsoleClearRaceFlag": [
+			"ClearRaceFlag"
+		],
+		"OnConsoleIsRaceFlagSet": [
+			"IsRaceFlagSet"
+		],
+		"OnConsoleGetRaceSkin": [
+			"GetRaceSkin"
+		],
+		"OnConsoleSetRaceSkin": [
+			"SetRaceSkin"
+		],
+		"OnConsoleGetRaceDefaultVoiceType": [
+			"GetRaceDefaultVoiceType"
+		],
+		"OnConsoleSetRaceDefaultVoiceType": [
+			"SetRaceDefaultVoiceType"
+		],
+		"OnConsoleGetActorValueInfoByName": [
+			"GetActorValueInfoByName",
+			"GetAVIFByName"
+		],
+		"OnConsoleGetArmorAddonModelPath": [
+			"GetArmorAddonModelPath",
+			"GetAAModelPath"
+		],
+		"OnConsoleSetArmorAddonModelPath": [
+			"SetArmorAddonModelPath",
+			"SetAAModelPath"
+		],
+		"OnConsoleGetConstructibleObjectResult": [
+			"GetConstructibleObjectResult",
+			"GetCOResult"
+		],
+		"OnConsoleSetConstructibleObjectResult": [
+			"SetConstructibleObjectResult",
+			"SetCOResult"
+		],
+		"OnConsoleGetConstructibleObjectResultQuantity": [
+			"GetConstructibleObjectResultQuantity",
+			"GetCOResultQuantity"
+		],
+		"OnConsoleSetConstructibleObjectResultQuantity": [
+			"SetConstructibleObjectResultQuantity",
+			"SetCOResultQuantity"
+		],
+		"OnConsoleGetConstructibleObjectNumIngredients": [
+			"GetConstructibleObjectNumIngredients",
+			"GetCONumIngredients"
+		],
+		"OnConsoleGetConstructibleObjectNthIngredient": [
+			"GetConstructibleObjectNthIngredient",
+			"GetCONthIngredient"
+		],
+		"OnConsoleSetConstructibleObjectNthIngredient": [
+			"SetConstructibleObjectNthIngredient",
+			"SetCONthIngredient"
+		],
+		"OnConsoleGetConstructibleObjectNthIngredientQuantity": [
+			"GetConstructibleObjectNthIngredientQuantity",
+			"GetCONthIngredientQuantity"
+		],
+		"OnConsoleSetConstructibleObjectNthIngredientQuantity": [
+			"SetConstructibleObjectNthIngredientQuantity",
+			"SetCONthIngredientQuantity"
+		],
+		"OnConsoleGetConstructibleObjectWorkbenchKeyword": [
+			"GetConstructibleObjectWorkbenchKeyword",
+			"GetCOWorkbenchKeyword"
+		],
+		"OnConsoleSetConstructibleObjectWorkbenchKeyword": [
+			"SetConstructibleObjectWorkbenchKeyword",
+			"SetCOWorkbenchKeyword"
+		],
+		"OnConsoleGetFloraIngredient": [
+			"GetFloraIngredient"
+		],
+		"OnConsoleSetFloraIngredient": [
+			"SetFloraIngredient"
+		],
+		"OnConsoleGetPotionNthEffectArea": [
+			"GetPotionNthEffectArea"
+		],
+		"OnConsoleSetPotionNthEffectArea": [
+			"SetPotionNthEffectArea"
+		],
+		"OnConsoleGetPotionNthEffectMagnitude": [
+			"GetPotionNthEffectMagnitude"
+		],
+		"OnConsoleSetPotionNthEffectMagnitude": [
+			"SetPotionNthEffectMagnitude"
+		],
+		"OnConsoleGetPotionNthEffectDuration": [
+			"GetPotionNthEffectDuration"
+		],
+		"OnConsoleSetPotionNthEffectDuration": [
+			"SetPotionNthEffectDuration"
+		],
+		"OnConsoleGetHeadPartValidRaces": [
+			"GetHeadpartValidRaces",
+			"GetHDPTValidRaces"
+		],
+		"OnConsoleGetHeadPartType": [
+			"GetHeadPartType",
+			"GetHDPTType"
+		],
+		"OnConsoleGetAllHeadParts": [
+			"GetAllHeadParts",
+			"GetHDPTs"
+		],
+		"OnConsoleGetABClass": [
+			"GetABClass"
+		],
+		"OnConsoleSetABClass": [
+			"SetABClass"
+		],
+		"OnConsoleGetABSpells": [
+			"GetABSpells"
+		],
+		"OnConsoleGetLocationCleared": [
+			"GetLocationCleared"
+		],
+		"OnConsoleSetLocationCleared": [
+			"SetLocationCleared"
+		],
+		"OnConsoleGetLocationParent": [
+			"GetLocationParent"
+		],
+		"OnConsoleSetLocationParent": [
+			"SetLocationParent"
+		],
+		"OnConsoleClearCachedFactionFightReactions": [
+			"ClearCachedFactionFightReactions",
+			"CCFFR"
+		],
+		"OnConsoleGetLocalGravity": [
+			"GetLocalGravity"
+		],
+		"OnConsoleFindForm": [
+			"FindForm",
+			"FF"
+		],
+		"OnConsoleGetAddonModels": [
+			"GetAddonModels"
+		],
+		"OnConsoleGetEffectShaderTotalCount": [
+			"GetEffectShaderTotalCount"
+		],
+		"OnConsoleIsEffectShaderFlagSet": [
+			"IsEffectShaderFlagSet"
+		],
+		"OnConsoleGetMembraneFillTexture": [
+			"GetMembraneFillTexture"
+		],
+		"OnConsoleGetMembraneHolesTexture": [
+			"GetMembraneHolesTexture"
+		],
+		"OnConsoleGetMembranePaletteTexture": [
+			"GetMembranePaletteTexture"
+		],
+		"OnConsoleGetParticleFullCount": [
+			"GetParticleFullCount"
+		],
+		"OnConsoleGetParticlePaletteTexture": [
+			"GetParticlePaletteTexture"
+		],
+		"OnConsoleGetParticleShaderTexture": [
+			"GetParticleShaderTexture"
+		],
+		"OnConsoleGetParticlePersistentCount": [
+			"GetParticlePersistentCount"
+		],
+		"OnConsoleSetAddonModels": [
+			"SetAddonModels"
+		],
+		"OnConsoleClearEffectShaderFlag": [
+			"ClearEffectShaderFlag"
+		],
+		"OnConsoleSetEffectShaderFlag": [
+			"SetEffectShaderFlag"
+		],
+		"OnConsoleSetMembraneColorKeyData": [
+			"SetMembraneColorKeyData"
+		],
+		"OnConsoleSetMembraneFillTexture": [
+			"SetMembraneFillTexture"
+		],
+		"OnConsoleSetMembraneHolesTexture": [
+			"SetMembraneHolesTexture"
+		],
+		"OnConsoleSetMembranePaletteTexture": [
+			"SetMembranePaletteTexture"
+		],
+		"OnConsoleSetParticleColorKeyData": [
+			"SetParticleColorKeyData"
+		],
+		"OnConsoleSetParticlePaletteTexture": [
+			"SetParticlePaletteTexture"
+		],
+		"OnConsoleSetParticlePersistentCount": [
+			"SetParticlePersistentCount"
+		],
+		"OnConsoleSetParticleShaderTexture": [
+			"SetParticleShaderTexture"
+		],
+		"OnConsoleAddEffectItemToEnchantment": [
+			"AddEffectItemToEnchantment"
+		],
+		"OnConsoleRemoveEffectItemFromEnchantment": [
+			"RemoveEffectItemFromEnchantment"
+		],
+		"OnConsoleSetEnchantmentMagicEffect": [
+			"SetEnchantmentMagicEffect"
+		],
+		"OnConsoleAddEffectItemToSpell": [
+			"AddEffectItemToSpell"
+		],
+		"OnConsoleRemoveEffectItemFromSpell": [
+			"RemoveEffectItemFromSpell"
+		],
+		"OnConsoleGetGoldValue": [
+			"GetGoldValue"
+		],
+		"OnConsoleSetGoldValue": [
+			"SetGoldValue"
+		],
+		"OnConsoleKnockAreaEffect": [
+			"KnockAreaEffect"
+		],
+		"OnConsoleResetReference": [
+			"ResetReference"
+		],
+		"OnConsoleDeleteReference": [
+			"DeleteReference"
+		],
+		"OnConsoleDisableReference": [
+			"DisableReference"
+		],
+		"OnConsolePlayAnimation": [
+			"PlayAnimation"
+		],
+		"OnConsolePlayAnimationAndWait": [
+			"PlayAnimationAndWait"
+		],
+		"OnConsolePlayGamebryoAnimation": [
+			"PlayGamebryoAnimation"
+		],
+		"OnConsolePlayImpactEffect": [
+			"PlayImpactEffect"
+		],
+		"OnConsolePlaySyncedAnimationSS": [
+			"PlaySyncedAnimationSS"
+		],
+		"OnConsolePlaySyncedAnimationAndWaitSS": [
+			"PlaySyncedAnimationAndWaitSS"
+		],
+		"OnConsolePushActorAway": [
+			"PushActorAway"
+		],
+		"OnConsoleSetAnimationVariableBool": [
+			"SetAnimationVariableBool"
+		],
+		"OnConsoleSetAnimationVariableInt": [
+			"SetAnimationVariableInt"
+		],
+		"OnConsoleSetAnimationVariableFloat": [
+			"SetAnimationVariableFloat"
+		],
+		"OnConsoleApplyHavokImpulse": [
+			"ApplyHavokImpulse"
+		],
+		"OnConsoleMoveToNode": [
+			"MoveToNode"
+		],
+		"OnConsoleNodeHelp": [
+			"NodeHelp"
+		],
+		"OnConsoleBodyMorphHelp": [
+			"BodyMorphHelp",
+			"MorphHelp"
+		],
+		"OnConsoleGetBodyMorph": [
+			"GetBodyMorph"
+		],
+		"OnConsoleSetBodyMorph": [
+			"SetBodyMorph"
+		],
+		"OnConsoleGetWornItemID": [
+			"GetWornItemID"
+		],
+		"OnConsoleSendTrespassAlarm": [
+			"SendTrespassAlarm"
+		],
+		"OnConsoleClearArrested": [
+			"ClearArrested"
+		],
+		"OnConsoleClearExpressionOverride": [
+			"ClearExpressionOverride"
+		],
+		"OnConsoleClearExtraArrows": [
+			"ClearExtraArrows"
+		],
+		"OnConsoleClearKeepOffsetFromActor": [
+			"ClearKeepOffsetFromActor"
+		],
+		"OnConsoleClearLookAt": [
+			"ClearLookAt"
+		],
+		"OnConsoleForceMovementSpeed": [
+			"ForceMovementSpeed"
+		],
+		"OnConsoleForceMovementRotationSpeed": [
+			"ForceMovementRotationSpeed"
+		],
+		"OnConsoleForceMovementSpeedRamp": [
+			"ForceMovementSpeedRamp"
+		],
+		"OnConsoleScaleObject3D": [
+			"ScaleObject3D"
+		],
+		"OnConsoleGetActorbaseDeadCount": [
+			"GetActorbaseDeadCount"
+		],
+		"OnConsoleGetActorbaseSex": [
+			"GetActorbaseSex"
+		],
+		"OnConsoleSetActorbaseInvulnerable": [
+			"SetActorbaseInvulnerable"
+		],
+		"OnConsoleGetKeyword": [
+			"GetKeyword"
+		],
+		"OnConsoleGetActorbaseVoiceType": [
+			"GetActorbaseVoiceType"
+		],
+		"OnConsoleSetActorbaseVoiceType": [
+			"SetActorbaseVoiceType"
+		],
+		"OnConsoleGetActorbaseCombatStyle": [
+			"GetActorbaseCombatStyle"
+		],
+		"OnConsoleSetActorbaseCombatStyle": [
+			"SetActorbaseCombatStyle"
+		],
+		"OnConsoleGetActorbaseWeight": [
+			"GetActorbaseWeight"
+		],
+		"OnConsoleSetActorbaseWeight": [
+			"SetActorbaseWeight"
+		],
+		"OnConsoleGetActorDialogueTarget": [
+			"GetActorDialogueTarget"
+		],
+		"OnConsoleSetCameraTarget": [
+			"SetCameraTarget"
+		],
+		"OnConsoleGetActorFactions": [
+			"GetActorFactions",
+			"GetFactions"
+		],
+		"OnConsoleGetFactionInformation": [
+			"GetFactionInformation",
+			"GetFactInfo"
+		],
+		"OnConsoleGetMagicEffectForm": [
+			"GetMagicEffectAssociatedForm",
+			"GetMGEFForm"
+		],
+		"OnConsoleGetHazardArt": [
+			"GetHazardArt"
+		],
+		"OnConsoleGetHazardIMOD": [
+			"GetHazardIMOD"
+		],
+		"OnConsoleGetHazardIMODRadius": [
+			"GetHazardIMODRadius"
+		],
+		"OnConsoleGetHazardIPDS": [
+			"GetHazardIPDS"
+		],
+		"OnConsoleGetHazardLifetime": [
+			"GetHazardLifetime"
+		],
+		"OnConsoleGetHazardLight": [
+			"GetHazardLight"
+		],
+		"OnConsoleGetHazardLimit": [
+			"GetHazardLimit"
+		],
+		"OnConsoleGetHazardRadius": [
+			"GetHazardRadius"
+		],
+		"OnConsoleGetHazardSound": [
+			"GetHazardSound"
+		],
+		"OnConsoleGetHazardSpell": [
+			"GetHazardSpell"
+		],
+		"OnConsoleGetHazardTargetInterval": [
+			"GetHazardTargetInterval"
+		],
+		"OnConsoleIsHazardFlagSet": [
+			"IsHazardFlagSet"
+		],
+		"OnConsoleClearHazardFlag": [
+			"ClearHazardFlag"
+		],
+		"OnConsoleSetHazardArt": [
+			"SetHazardArt"
+		],
+		"OnConsoleSetHazardFlag": [
+			"SetHazardFlag"
+		],
+		"OnConsoleSetHazardIMOD": [
+			"SetHazardIMOD"
+		],
+		"OnConsoleSetHazardIMODRadius": [
+			"SetHazardIMODRadius"
+		],
+		"OnConsoleSetHazardIPDS": [
+			"SetHazardIPDS"
+		],
+		"OnConsoleSetHazardLifetime": [
+			"SetHazardLifetime"
+		],
+		"OnConsoleSetHazardLight": [
+			"SetHazardLight"
+		],
+		"OnConsoleSetHazardLimit": [
+			"SetHazardLimit"
+		],
+		"OnConsoleSetHazardRadius": [
+			"SetHazardRadius"
+		],
+		"OnConsoleSetHazardSound": [
+			"SetHazardSound"
+		],
+		"OnConsoleSetHazardSpell": [
+			"SetHazardSpell"
+		],
+		"OnConsoleSetHazardTargetInterval": [
+			"SetHazardTargetInterval"
+		],
+		"OnConsoleGetLightColor": [
+			"GetLightColor"
+		],
+		"OnConsoleGetLightFade": [
+			"GetLightFade"
+		],
+		"OnConsoleGetLightFOV": [
+			"GetLightFOV"
+		],
+		"OnConsoleGetLightRadius": [
+			"GetLightRadius"
+		],
+		"OnConsoleGetLightRGB": [
+			"GetLightRGB"
+		],
+		"OnConsoleGetLightShadowDepthBias": [
+			"GetLightShadowDepthBias",
+			"GetLightSDB"
+		],
+		"OnConsoleGetLightType": [
+			"GetLightType"
+		],
+		"OnConsoleSetLightColor": [
+			"SetLightColor"
+		],
+		"OnConsoleSetLightFade": [
+			"SetLightFade"
+		],
+		"OnConsoleSetLightFOV": [
+			"SetLightFOV"
+		],
+		"OnConsoleSetLightRadius": [
+			"SetLightRadius"
+		],
+		"OnConsoleSetLightRGB": [
+			"SetLightRGB"
+		],
+		"OnConsoleSetLightShadowDepthBias": [
+			"SetLightShadowDepthBias",
+			"SetLightSDB"
+		],
+		"OnConsoleSetLightType": [
+			"SetLightType"
+		],
+		"OnConsoleGetMagicEffectArchetype": [
+			"GetMagicEffectArchetype",
+			"GetMGEFArchetype"
+		],
+		"OnConsoleGetMagicEffectPrimaryActorValue": [
+			"GetMagicEffectPrimaryActorValue",
+			"GetMGEFPrimaryAV"
+		],
+		"OnConsoleGetMagicEffectySecondaryActorValue": [
+			"GetMagicEffectySecondaryActorValue",
+			"GetMGEFSecondaryAV"
+		],
+		"OnConsoleSetSubGraphFloatVariable": [
+			"SetSubGraphFloatVariable",
+			"SetSGFVar"
+		],
+		"OnConsoleGetWorldModelNthTextureSet": [
+			"GetWorldModelNthTextureSet",
+			"GetWMNthTXST"
+		],
+		"OnConsoleSetWorldModelNthTextureSet": [
+			"SetWorldModelNthTextureSet",
+			"SetWMNthTXST"
+		],
+		"OnConsoleGetWorldModelTextureSets": [
+			"GetWorldModelTextureSets",
+			"GetWMTXSTs"
+		],
+		"OnConsoleGetFormInfo": [
+			"GetFormInfo",
+			"GFI"
+		],
+		"OnConsoleSendModEvent": [
+			"SendModEvent",
+			"SMI"
+		],
+		"OnConsoleGetReferenceInfo": [
+			"GetReferenceInfo",
+			"GRI"
+		],
+		"OnConsoleLearnIngredientEffect": [
+			"LearnIngredientEffect",
+			"LearnEffect"
+		],
+		"OnConsoleSayTopic": [
+			"SayTopic"
+		],
+		"OnConsoleSetActorCalmed": [
+			"SetActorCalmed"
+		],
+		"OnConsoleGetKeycodeString": [
+			"GetKeycodeString"
+		],
+		"OnConsoleSwapEquipment": [
+			"SwapEquipment"
+		],
+		"OnConsoleGetQuestMarker": [
+			"GetQuestMarker"
+		],
+		"OnConsoleFindAllArmorsForSlot": [
+			"FindAllArmorsForSlot"
+		],
+		"OnConsoleForceStartScene": [
+			"ForceStartScene"
+		],
+		"OnConsoleStartScene": [
+			"StartScene"
+		],
+		"OnConsoleStopScene": [
+			"StopScene"
+		],
+		"OnConsoleIsScenePlaying": [
+			"IsScenePlaying"
+		],
+		"OnConsoleGetArmorAddonModelNumTextureSets": [
+			"GetArmorAddonModelNumTextureSets"
+		],
+		"OnConsoleGetArmorAddonModelNthTextureSet": [
+			"GetArmorAddonModelNthTextureSet"
+		],
+		"OnConsoleSetArmorAddonModelNthTextureSet": [
+			"SetArmorAddonModelNthTextureSet"
+		],
+		"OnConsoleGetArmorNumArmorAddons": [
+			"GetArmorNumArmorAddons"
+		],
+		"OnConsoleGetArmorNthArmorAddon": [
+			"GetArmorNthArmorAddon"
+		],
+		"OnConsoleGetArmorModelArmorAddons": [
+			"GetArmorModelArmorAddons"
+		],
+		"OnConsoleGetArmorAddons": [
+			"GetArmorAddons"
+		],
+		"OnConsoleSetFreeCameraSpeed": [
+			"SetFreeCameraSpeed"
+		],
+		"OnConsoleGetFormsInFormList": [
+			"GetFormsInFormList"
+		],
+		"OnConsoleGetGlobalVariable": [
+			"GetGlobalVariable"
+		],
+		"OnConsoleGetFormMagicEffects": [
+			"GetFormMagicEffects"
+		],
+		"OnConsoleFlattenLeveledList": [
+			"FlattenLeveledList"
+		],
+		"OnConsoleGetRaceSlotMask": [
+			"GetRaceSlotMask"
+		],
+		"OnConsoleSetRaceSlotMask": [
+			"SetRaceSlotMask"
+		],
+		"OnConsoleAddRaceSlotToMask": [
+			"AddRaceSlotToMask"
+		],
+		"OnConsoleGetArmorAddonSlotMask": [
+			"GetArmorAddonSlotMask"
+		],
+		"OnConsoleSetArmorAddonSlotMask": [
+			"SetArmorAddonSlotMask"
+		],
+		"OnConsoleAddArmorAddonSlotToMask": [
+			"AddArmorAddonSlotToMask"
+		],
+		"OnConsoleRemoveRaceSlotFromMask": [
+			"RemoveRaceSlotFromMask"
+		],
+		"OnConsoleGetWeaponModelPath": [
+			"GetWeaponModelPath"
+		],
+		"OnConsoleSetWeaponModelPath": [
+			"SetWeaponModelPath"
+		],
+		"OnConsoleGetWeaponIconPath": [
+			"GetWeaponIconPath"
+		],
+		"OnConsoleSetWeaponIconPath": [
+			"SetWeaponIconPath"
+		],
+		"OnConsoleGetWeaponMessageIconPath": [
+			"GetWeaponMessageIconPath"
+		],
+		"OnConsoleSetWeaponMessageIconPath": [
+			"SetWeaponMessageIconPath"
+		],
+		"OnConsoleSetLocalGravity": [
+			"SetLocalGravity"
+		],
+		"OnConsoleGetColorFormColor": [
+			"GetColorFormColor", 
+			"GetCLFMColor"
+		],
+		"OnConsoleSetColorFormColor": [
+			"SetColorFormColor",
+			"SetCLFMColor"
+		],
+		"OnConsoleSetActorSex": [
+			"SetActorSex"
+		],
+		"OnConsoleGetVisualEffectArtObject": [
+			"GetVisualEffectArtObject",
+			"GetVEARTO"
+		],
+		"OnConsoleSetVisualEffectArtObject": [
+			"SetVisualEffectArtObject",
+			"SetVEARTO"
+		],
+		"OnConsoleSelectObjectUnderFeet": [
+			"SelectObjectUnderFeet"
+		],
+		"OnConsoleGetTNGBoolValue": [
+			"GetTNGBoolValue"
+		],
+		"OnConsoleSetTNGBoolValue": [
+			"SetTNGBoolValue"
+		],
+		"OnConsoleGetAllTNGAddonsCount": [
+			"GetAllTNGAddonsCount"
+		],
+		"OnConsoleGetAllTNGPossibleAddons": [
+			"GetAllTNGPossibleAddons"
+		],
+		"OnConsoleGetTNGAddonStatus": [
+			"GetTNGAddonStatus"
+		],
+		"OnConsoleSetTNGAddonStatus": [
+			"SetTNGAddonStatus"
+		],
+		"OnConsoleGetTNGRgNames": [
+			"GetTNGRgNames"
+		],
+		"OnConsoleGetTNGRgInfo": [
+			"GetTNGRgInfo"
+		],
+		"OnConsoleGetTNGRgAddons": [
+			"GetTNGRgAddons"
+		],
+		"OnConsoleGetTNGRgAddon": [
+			"GetTNGRgAddon"
+		],
+		"OnConsoleSetTNGRgAddon": [
+			"SetTNGRgAddon"
+		],
+		"OnConsoleGetTNGRgMult": [
+			"GetTNGRgMult"
+		],
+		"OnConsoleSetTNGRgMult": [
+			"SetTNGRgMult"
+		],
+		"OnConsoleCanModifyActorTNG": [
+			"CanModifyActorTNG"
+		],
+		"OnConsoleGetTNGActorAddons": [
+			"GetTNGActorAddons"
+		],
+		"OnConsoleGetTNGActorAddon": [
+			"GetTNGActorAddon"
+		],
+		"OnConsoleSetTNGActorAddon": [
+			"SetTNGActorAddon"
+		],
+		"OnConsoleGetTNGActorSize": [
+			"GetTNGActorSize"
+		],
+		"OnConsoleSetTNGActorSize": [
+			"SetTNGActorSize"
+		],
+		"OnConsoleTNGActorItemsInfo": [
+			"TNGActorItemsInfo"
+		],
+		"OnConsoleTNGSwapRevealing": [
+			"TNGSwapRevealing"
+		],
+		"OnConsoleCheckTNGActors": [
+			"CheckTNGActors"
+		],
+		"OnConsoleGetTNGSlot52Mods": [
+			"GetTNGSlot52Mods"
+		],
+		"OnConsoleTNGSlot52ModBehavior": [
+			"TNGSlot52ModBehavior"
+		],
+		"OnConsoleUpdateTNGSettings": [
+			"UpdateTNGSettings"
+		],
+		"OnConsoleUpdateTNGLogLvl": [
+			"UpdateTNGLogLvl"
+		],
+		"OnConsoleShowTNGLogLocation": [
+			"ShowTNGLogLocation"
+		],
+		"OnConsoleGetTNGErrDscr": [
+			"GetTNGErrDscr"
+		],
+		"OnConsoleTNGWhyProblem": [
+			"TNGWhyProblem"
+		]
+	}
+}
