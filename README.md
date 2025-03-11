@@ -1,6 +1,6 @@
 VCS for CCFE
 ===
-A bundle of functions for the console with a hard requirement of ConsoleCommandsForEveryone and soft requirement for whatever the script is that provides the native functions for the console commands one wants to use.
+A bundle of functions for the console with a hard requirement of ConsoleCommandsForEveryone and all its hard requirements, as well as a soft requirement for whatever the script is that provides the native functions for the console commands one wants to use.
 
 These include: PO3_SKSEFunctions, DbSKSEFunctions, DynamicPersistentForms, _SE_SpellExtender, NiOverride, sztkUtils, Chargen and ConsoleUtil.
 
