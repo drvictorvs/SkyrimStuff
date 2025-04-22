@@ -1249,6 +1249,10 @@
 		"OnConsoleGetLastMenuOpened": [
 			"GetLastMenuOpened"
 		],
+		"OnConsoleActorValueHelp": [
+			"ActorValueHelp",
+			"AVHelp"
+		],
 		"OnConsoleSkillHelp": [
 			"SkillHelp"
 		],
@@ -1608,6 +1612,9 @@
 		],
 		"OnConsoleSetHeadpartAlpha": [
 			"SetHeadpartAlpha"
+		],
+		"OnConsoleGetActorRefraction": [
+			"GetActorRefraction"
 		],
 		"OnConsoleSetActorRefraction": [
 			"SetActorRefraction"
@@ -2367,25 +2374,32 @@
 			"GetKeyword"
 		],
 		"OnConsoleGetActorbaseVoiceType": [
-			"GetActorbaseVoiceType"
+			"GetActorbaseVoiceType",
+			"GetABVT"
 		],
 		"OnConsoleSetActorbaseVoiceType": [
-			"SetActorbaseVoiceType"
+			"SetActorbaseVoiceType",
+			"SetABVT"
 		],
 		"OnConsoleGetActorbaseCombatStyle": [
-			"GetActorbaseCombatStyle"
+			"GetActorbaseCombatStyle",
+			"GetABCS"
 		],
 		"OnConsoleSetActorbaseCombatStyle": [
-			"SetActorbaseCombatStyle"
+			"SetActorbaseCombatStyle",
+			"SetABCS"
 		],
 		"OnConsoleGetActorbaseWeight": [
-			"GetActorbaseWeight"
+			"GetActorbaseWeight",
+			"GetABWeight"
 		],
 		"OnConsoleSetActorbaseWeight": [
-			"SetActorbaseWeight"
+			"SetActorbaseWeight",
+			"SetABWeight"
 		],
 		"OnConsoleGetActorDialogueTarget": [
-			"GetActorDialogueTarget"
+			"GetActorDialogueTarget",
+			"GetDialogueTarget"
 		],
 		"OnConsoleSetCameraTarget": [
 			"SetCameraTarget"
@@ -2631,15 +2645,6 @@
 		"OnConsoleFlattenLeveledList": [
 			"FlattenLeveledList"
 		],
-		"OnConsoleGetRaceSlotMask": [
-			"GetRaceSlotMask"
-		],
-		"OnConsoleSetRaceSlotMask": [
-			"SetRaceSlotMask"
-		],
-		"OnConsoleAddRaceSlotToMask": [
-			"AddRaceSlotToMask"
-		],
 		"OnConsoleGetArmorAddonSlotMask": [
 			"GetArmorAddonSlotMask"
 		],
@@ -2648,9 +2653,6 @@
 		],
 		"OnConsoleAddArmorAddonSlotToMask": [
 			"AddArmorAddonSlotToMask"
-		],
-		"OnConsoleRemoveRaceSlotFromMask": [
-			"RemoveRaceSlotFromMask"
 		],
 		"OnConsoleGetWeaponModelPath": [
 			"GetWeaponModelPath"
@@ -2683,6 +2685,15 @@
 		],
 		"OnConsoleSetActorSex": [
 			"SetActorSex"
+		],
+		"OnConsoleRefreshItemMenu": [
+			"RefreshItemMenu"
+		],
+		"OnConsoleGetArtObjectNthTextureSet": [
+			"GetArtObjectNthTextureSet"
+		],
+		"OnConsoleSetArtObjectNthTextureSet": [
+			"SetArtObjectNthTextureSet"
 		],
 		"OnConsoleGetVisualEffectArtObject": [
 			"GetVisualEffectArtObject",
@@ -2781,6 +2792,347 @@
 		],
 		"OnConsoleTNGWhyProblem": [
 			"TNGWhyProblem"
+		],
+		"OnConsoleDisenchant": [
+			"Disenchant"
+		],
+		"OnConsoleStartPhysics": [
+			"StartCBPCPhysics"
+		],
+		"OnConsoleStopPhysics": [
+			"StopCBPCPhysics"
+		],
+		"OnConsoleGetOffensiveMult": [
+			"GetCSOffensiveMult"
+		],
+		"OnConsoleGetDefensiveMult": [
+			"GetCSDefensiveMult"
+		],
+		"OnConsoleGetGroupOffensiveMult": [
+			"GetCSGroupOffensiveMult"
+		],
+		"OnConsoleGetAvoidThreatChance": [
+			"GetCSAvoidThreatChance"
+		],
+		"OnConsoleGetMeleeMult": [
+			"GetCSMeleeMult"
+		],
+		"OnConsoleGetRangedMult": [
+			"GetCSRangedMult"
+		],
+		"OnConsoleGetMagicMult": [
+			"GetCSMagicMult"
+		],
+		"OnConsoleGetShoutMult": [
+			"GetCSShoutMult"
+		],
+		"OnConsoleGetStaffMult": [
+			"GetCSStaffMult"
+		],
+		"OnConsoleGetUnarmedMult": [
+			"GetCSUnarmedMult"
+		],
+		"OnConsoleSetOffensiveMult": [
+			"SetCSOffensiveMult"
+		],
+		"OnConsoleSetDefensiveMult": [
+			"SetCSDefensiveMult"
+		],
+		"OnConsoleSetGroupOffensiveMult": [
+			"SetCSGroupOffensiveMult"
+		],
+		"OnConsoleSetAvoidThreatChance": [
+			"SetCSAvoidThreatChance"
+		],
+		"OnConsoleSetMeleeMult": [
+			"SetCSMeleeMult"
+		],
+		"OnConsoleSetRangedMult": [
+			"SetCSRangedMult"
+		],
+		"OnConsoleSetMagicMult": [
+			"SetCSMagicMult"
+		],
+		"OnConsoleSetShoutMult": [
+			"SetCSShoutMult"
+		],
+		"OnConsoleSetStaffMult": [
+			"SetCSStaffMult"
+		],
+		"OnConsoleSetUnarmedMult": [
+			"SetCSUnarmedMult"
+		],
+		"OnConsoleGetMeleeAttackStaggeredMult": [
+			"GetCSMeleeAttackStaggeredMult"
+		],
+		"OnConsoleGetMeleePowerAttackStaggeredMult": [
+			"GetCSMeleePowerAttackStaggeredMult"
+		],
+		"OnConsoleGetMeleePowerAttackBlockingMult": [
+			"GetCSMeleePowerAttackBlockingMult"
+		],
+		"OnConsoleGetMeleeBashMult": [
+			"GetCSMeleeBashMult"
+		],
+		"OnConsoleGetMeleeBashRecoiledMult": [
+			"GetCSMeleeBashRecoiledMult"
+		],
+		"OnConsoleGetMeleeBashAttackMult": [
+			"GetCSMeleeBashAttackMult"
+		],
+		"OnConsoleGetMeleeBashPowerAttackMult": [
+			"GetCSMeleeBashPowerAttackMult"
+		],
+		"OnConsoleGetMeleeSpecialAttackMult": [
+			"GetCSMeleeSpecialAttackMult"
+		],
+		"OnConsoleGetAllowDualWielding": [
+			"GetCSAllowDualWielding"
+		],
+		"OnConsoleSetMeleeAttackStaggeredMult": [
+			"SetCSMeleeAttackStaggeredMult"
+		],
+		"OnConsoleSetMeleePowerAttackStaggeredMult": [
+			"SetCSMeleePowerAttackStaggeredMult"
+		],
+		"OnConsoleSetMeleePowerAttackBlockingMult": [
+			"SetCSMeleePowerAttackBlockingMult"
+		],
+		"OnConsoleSetMeleeBashMult": [
+			"SetCSMeleeBashMult"
+		],
+		"OnConsoleSetMeleeBashRecoiledMult": [
+			"SetCSMeleeBashRecoiledMult"
+		],
+		"OnConsoleSetMeleeBashAttackMult": [
+			"SetCSMeleeBashAttackMult"
+		],
+		"OnConsoleSetMeleeBashPowerAttackMult": [
+			"SetCSMeleeBashPowerAttackMult"
+		],
+		"OnConsoleSetMeleeSpecialAttackMult": [
+			"SetCSMeleeSpecialAttackMult"
+		],
+		"OnConsoleSetAllowDualWielding": [
+			"SetCSAllowDualWielding"
+		],
+		"OnConsoleGetCloseRangeDuelingCircleMult": [
+			"GetCSCloseRangeDuelingCircleMult"
+		],
+		"OnConsoleGetCloseRangeDuelingFallbackMult": [
+			"GetCSCloseRangeDuelingFallbackMult"
+		],
+		"OnConsoleGetCloseRangeFlankingFlankDistance": [
+			"GetCSCloseRangeFlankingFlankDistance"
+		],
+		"OnConsoleGetCloseRangeFlankingStalkTime": [
+			"GetCSCloseRangeFlankingStalkTime"
+		],
+		"OnConsoleSetCloseRangeDuelingCircleMult": [
+			"SetCSCloseRangeDuelingCircleMult"
+		],
+		"OnConsoleSetCloseRangeDuelingFallbackMult": [
+			"SetCSCloseRangeDuelingFallbackMult"
+		],
+		"OnConsoleSetCloseRangeFlankingFlankDistance": [
+			"SetCSCloseRangeFlankingFlankDistance"
+		],
+		"OnConsoleSetCloseRangeFlankingStalkTime": [
+			"SetCSCloseRangeFlankingStalkTime"
+		],
+		"OnConsoleGetLongRangeStrafeMult": [
+			"GetCSLongRangeStrafeMult"
+		],
+		"OnConsoleSetLongRangeStrafeMult": [
+			"SetCSLongRangeStrafeMult"
+		],
+		"OnConsoleGetFlightHoverChance": [
+			"GetCSFlightHoverChance"
+		],
+		"OnConsoleGetFlightDiveBombChance": [
+			"GetCSFlightDiveBombChance"
+		],
+		"OnConsoleGetFlightFlyingAttackChance": [
+			"GetCSFlightFlyingAttackChance"
+		],
+		"OnConsoleSetFlightHoverChance": [
+			"SetCSFlightHoverChance"
+		],
+		"OnConsoleSetFlightDiveBombChance": [
+			"SetCSFlightDiveBombChance"
+		],
+		"OnConsoleSetSILNakedSlotMask": [
+			"SetSILNakedSlotMask"
+		],
+		"OnConsoleGetAnimationEventName": [
+			"GetAnimationEventName"
+		],
+		"OnConsoleGetAnimationFileName": [
+			"GetAnimationFileName"
+		],
+		"OnConsoleSetObjectiveText": [
+			"SetObjectiveText"
+		],
+		"OnConsoleRemoveInvalidConstructibleObjects": [
+			"RemoveInvalidConstructibleObjects",
+			"RemoveCOs"
+		],
+		"OnConsoleGetAllOutfitParts": [
+			"GetAllOutfitParts"
+		],
+		"OnConsoleGetAllTexturePaths": [
+			"GetAllTexturePaths"
+		],
+		"OnConsoleGetAutorunLines": [
+			"GetAutorunLines"
+		],
+		"OnConsoleAddAutorunLine": [
+			"AddAutorunLine"
+		],
+		"OnConsoleRemoveAutorunLine": [
+			"RemoveAutorunLine"
+		],
+		"OnConsoleAddFormsToFormlist": [
+			"AddFormsToFormlist"
+		],
+		"OnConsoleAddFormToFormlists": [
+			"AddFormToFormlists"
+		],
+		"OnConsoleCopyKeywords": [
+			"CopyKeywords"
+		],
+		"OnConsoleAddKeywordsToForm": [
+			"AddKeywordsToForm"
+		],
+		"OnConsoleRemoveKeywordsFromForm": [
+			"RemoveKeywordsFromForm"
+		],
+		"OnConsoleAddKeywordToForms": [
+			"AddKeywordToForms"
+		],
+		"OnConsoleRemoveKeywordFromForms": [
+			"RemoveKeywordFromForms"
+		],
+		"OnConsoleFindEffectOnActor": [
+			"FindEffectOnActor"
+		],
+		"OnConsoleFindKeywordOnForm": [
+			"FindKeywordOnForm"
+		],
+		"OnConsolePlaceBefore": [
+			"PlaceBefore"
+		],
+		"OnConsoleGetWornForms": [
+			"GetWornForms"
+		],
+		"OnConsoleRemoveDecals": [
+			"RemoveDecals"
+		],
+		"OnConsoleGetRaceSlotMask": [
+			"GetRaceSlotMask"
+		],
+		"OnConsoleSetRaceSlotMask": [
+			"SetRaceSlotMask"
+		],
+		"OnConsoleAddRaceSlotToMask": [
+			"AddRaceSlotToMask"
+		],
+		"OnConsoleRemoveRaceSlotFromMask": [
+			"RemoveRaceSlotFromMask"
+		],
+		"OnConsoleGetAllArmorsForSlotMask": [
+			"GetAllArmorsForSlotMask"
+		],
+		"OnConsoleAddAdditionalRaceToArmorAddon": [
+			"AddAdditionalRaceToArmorAddon"
+		],
+		"OnConsoleRemoveAdditionalRaceFromArmorAddon": [
+			"RemoveAdditionalRaceFromArmorAddon"
+		],
+		"OnConsoleRaceSlotMaskHasPartOf": [
+			"RaceSlotMaskHasPartOf"
+		],
+		"OnConsoleArmorSlotMaskHasPartOf": [
+			"ArmorSlotMaskHasPartOf"
+		],
+		"OnConsoleArmorAddonSlotMaskHasPartOf": [
+			"ArmorAddonSlotMaskHasPartOf"
+		],
+		"OnConsoleGetArmorAddonRaces": [
+			"GetArmorAddonRaces"
+		],
+		"OnConsoleArmorAddonHasRace": [
+			"ArmorAddonHasRace"
+		],
+		"OnConsoleSetMapMarkerVisible": [
+			"SetMapMarkerVisible"
+		],
+		"OnConsoleSetCanFastTravelToMarker": [
+			"SetCanFastTravelToMarker"
+		],
+		"OnConsoleGetKnownEnchantments": [
+			"GetKnownEnchantments"
+		],
+		"OnConsoleReload": [
+			"Reload"
+		],
+		"OnConsoleGetRaceSlots": [
+			"GetRaceSlots"
+		],
+		"OnConsoleStartWhiterunAttack": [
+			"StartWhiterunAttack"
+		],
+		"OnConsoleOpenCustomSkillMenu": [
+			"OpenCustomSkillMenu"
+		],
+		"OnConsoleShowTrainingMenu": [
+			"ShowCustomTrainingMenu"
+		],
+		"OnConsoleAdvanceSkill": [
+			"AdvanceCustomSkill", "AdvCSkill"
+		],
+		"OnConsoleIncrementSkill": [
+			"IncrementCustomSkill",
+			"IncCSkill"
+		],
+		"OnConsoleGetSkillName": [
+			"GetSkillName"
+		],
+		"OnConsoleGetSkillLevel": [
+			"GetSkillLevel"
+		],
+		"OnConsolePacifyActor": [
+			"PacifyActor", "Pacify"
+		],
+		"OnConsoleWhyHostile": [
+			"WhyHostile"
+		],
+		"OnConsoleGetLightingTemplate": [
+			"GetLightingTemplate"
+		],
+		"OnConsoleSetLightingTemplate": [
+			"SetLightingTemplate"
+		],
+		"OnConsoleGetVendorFactionContainer": [
+			"GetVendorFactionContainer"
+		],
+		"OnConsoleGetRefNodeNames": [
+			"GetRefNodeNames"
+		],
+		"OnConsoleSetExpressionPhoneme": [
+			"SetExpressionPhoneme"
+		],
+		"OnConsoleSetExpressionModifier": [
+			"SetExpressionModifier"
+		],
+		"OnConsoleResetExpressionOverrides": [
+			"ResetExpressionOverrides"
+		],
+		"OnConsoleShowAsHelpMessage": [
+			"ShowAsHelpMessage"
+		],
+		"OnConsoleResetHelpMessage": [
+			"ResetHelpMessage"
 		]
 	}
 }
