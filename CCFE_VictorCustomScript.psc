@@ -7,6 +7,14 @@ Import _SE_SpellExtender
 Import NiOverride
 Import ConsoleUtil
 Import VCSMisc
+Import MiscUtil
+Import CustomSkills
+Import OData
+Import SILFollower
+Import CW03Script
+Import f314FD_Utils
+Import CBPCPluginScript
+Import TNG_PapyrusUtil
 
 Actor Property PlayerRef Auto
 
@@ -123,7 +131,6 @@ Event OnInit()
   RegisterConsoleCommands()
 EndEvent
 
-
 Event OnPlayerLoadGame()
   RegisterConsoleCommands()
 EndEvent
@@ -136,10 +143,60 @@ String Function IfElse(bool condition, string a, string b)
   EndIf
 EndFunction
 
-String[] Function StringArrayFromSArgument(String sArgument, int argNumber = 1)
-  String[] parts = StringUtil.Split(sArgument, " ")
-  String argument = parts[argNumber]
-  Return StringUtil.Split(argument, ";")
+String[] Function StringArrayFromSArgument(String sArgument, Int argNumber = 1)
+  ; Initialize variables
+  String[] output
+  Int index = 0
+  Int L = StringUtil.GetLength(sArgument)
+  Int currentArg = 0 ; Start counting from 0 (function name is arg 0)
+  Bool inQuotes = False
+  String currentArgText = ""
+
+  ; Loop through the string to extract the desired argument
+  While index < L
+    String currentChar = StringUtil.GetNthChar(sArgument, index)
+
+    ; Handle quoted arguments
+    If currentChar == DoubleQuote()
+      inQuotes = !inQuotes ; Toggle quote state
+    EndIf
+
+    ; Detect argument boundaries (spaces outside quotes)
+    If (currentChar == " " && !inQuotes) || index == L - 1
+      ; If we're at the end of the string, include the last character
+      If index == L - 1
+        currentArgText += currentChar
+      EndIf
+
+      ; Check if the current argument matches the requested argNumber
+      If currentArg == argNumber
+        ; Split the argument by ";" and store the result in the output array
+        String[] tempArray = StringUtil.Split(currentArgText, ";")
+        If tempArray.Length > 0
+          output = tempArray
+        Else
+          ; If the split result is empty, return an array with an empty string
+          output = New String[1]
+          output[0] = ""
+        EndIf
+        Return output
+      EndIf
+
+      ; Reset for the next argument
+      currentArgText = ""
+      currentArg += 1
+    Else
+      ; Build the current argument text
+      currentArgText += currentChar
+    EndIf
+
+    index += 1
+  EndWhile
+
+  ; If the requested argument was not found, return an array with an empty string
+  output = New String[1]
+  output[0] = ""
+  Return output
 EndFunction
 
 Form[] Function FormArrayFromSArgument(String sArgument, int argNumber = 1)
@@ -148,7 +205,7 @@ Form[] Function FormArrayFromSArgument(String sArgument, int argNumber = 1)
   
   ; Check if the requested argument exists
   If argNumber >= parts.Length
-    PrintMessage("Argument " + argNumber + " does not exist in sArgument.")
+    PrintMessage("Argument " + argNumber + " does not exist in sArgument")
     Form[] result
 
     Return result  ; Return an empty array if the argument doesn't exist
@@ -174,11 +231,11 @@ Form[] Function FormArrayFromSArgument(String sArgument, int argNumber = 1)
     
     ; Check if the form string is a hexadecimal form ID
     If IsHex(formString)
-      PrintMessage("Attempting to get form from form ID " + formString + ".")
+      PrintMessage("Attempting to get form from form ID " + formString)
       akForm = Game.GetFormEx(HexToInt(formString))
     ; Check if the form string is an editor ID
     ElseIf PO3_SKSEFunctions.GetFormFromEditorID(formString)
-      PrintMessage("Getting form from editor ID " + formString + ".")
+      PrintMessage("Getting form from editor ID " + formString)
       akForm = PO3_SKSEFunctions.GetFormFromEditorID(formString)
     EndIf
     
@@ -186,7 +243,7 @@ Form[] Function FormArrayFromSArgument(String sArgument, int argNumber = 1)
     If akForm != None
       result = PapyrusUtil.PushForm(result, akForm)
     Else
-      PrintMessage("Failed to get form from string: " + formString + ".")
+      PrintMessage("Failed to get form from string: " + formString)
     EndIf
     
     ; Move to the next form string
@@ -347,27 +404,31 @@ Bool Function BoolFromSArgument(String sArgument, int argNumber = 1, bool fallba
   ElseIf arg == "0" || arg == "false"
     return false
   Else
-    PrintMessage("Failed to get bool at argument " + argNumber as String + ". Defaulting to " + fallback as String + ".")
+    PrintMessage("Failed to get bool at argument " + argNumber as String + ". Defaulting to " + fallback as String)
     return fallback
   EndIf
 EndFunction
 
-ObjectReference Function RefFromSArgument(String sArgument, int argNumber = 1)
-  Return FormFromSArgument(sArgument, argNumber) as ObjectReference
+ObjectReference Function RefFromSArgument(String sArgument, int argNumber = 1, ObjectReference fallback = None)
+  If FormFromSArgument(sArgument, argNumber) as ObjectReference
+    Return FormFromSArgument(sArgument, argNumber) as ObjectReference
+  Else
+    Return fallback
+  EndIf
 EndFunction
 
-Form Function FormFromSArgument(String sArgument, int argNumber = 1)
+Form Function FormFromSArgument(String sArgument, int argNumber = 1, Form fallback = None)
   Form akForm
   String arg = self.StringFromSArgument(sArgument, argNumber)
   If IsHex(arg)
-    PrintMessage("Attempting to get form from form ID " + arg + ".")
+    PrintMessage("Attempting to get form from form ID " + arg)
     akForm = Game.GetFormEx(HexToInt(arg))
   ElseIf PO3_SKSEFunctions.GetFormFromEditorID(arg)
-    PrintMessage("Getting form from editor ID " + arg + ".")
+    PrintMessage("Getting form from editor ID " + arg)
     akForm = PO3_SKSEFunctions.GetFormFromEditorID(arg)
   EndIf
   If akForm == none
-    PrintMessage("Failed to get form at argument " + argNumber + ". Returning None.")
+    PrintMessage("Failed to get form at argument " + argNumber + ". Returning fallback value " + GetFullID(fallback))
   EndIf
   Return akForm
 EndFunction
@@ -418,39 +479,27 @@ EndFunction
 String Function GetFullID(Form akForm)
   String FID = ""
   String EDID = ""
-  String FT = DbMiscFunctions.GetFormTypeString(DbMiscFunctions.GetFormTypeAll(akForm))
-  String BracketedText
-  String Result
+  String FT = DbMiscFunctions.GetFormTypeStringAll(akForm)
 
   If PO3_SKSEFunctions.IntToString(akForm.GetFormId(), true) != ""
     FID = PO3_SKSEFunctions.IntToString(akForm.GetFormId(), true)
   ElseIf DbMiscFunctions.GetFormIDHex(akForm) != ""
     FID = DbMiscFunctions.GetFormIDHex(akForm)
   Else
-    Return "Unk. FormID"
+    FID = "unk. FormID"
   EndIf
-
   If PO3_SKSEFunctions.GetFormEditorId(akForm) != ""
     EDID = PO3_SKSEFunctions.GetFormEditorId(akForm)
   Else
-    EDID = DbSKSEFunctions.GetFormEditorID(akForm, "Unk. EDID")
+    EDID = DbSKSEFunctions.GetFormEditorID(akForm, "unk. EDID")
+  EndIf
+  String Result = DoubleQuotes(EDID + " [" + FT + ": " + FID + "]")
+
+  If (akForm as ObjectReference).GetDisplayName() != ""
+    Result = DoubleQuotes(EDID + " '" + (akForm as ObjectReference).GetDisplayName() + "' [" + FT + ":" + FID + "]")
   EndIf
 
-  If FT == ""
-    FT = "UNKN"
-  EndIf
-
-  BracketedText = Brackets(FT + ": " + FID)
-  Result = DoubleQuotes(EDID + BracketedText)
-
-  If (akForm as ObjectReference) == none
-    Result = DoubleQuotes(EDID + BracketedText)
-  ElseIf (akForm as ObjectReference).GetDisplayName() == ""
-    ObjectReference akRef = akForm as ObjectReference
-    Result = DoubleQuotes(EDID + SingleQuotes(akRef.GetDisplayName()) + BracketedText)
-  EndIf
-
-  Return Trim(Result)
+  Return Result
 EndFunction
 
 ; sArgument inclui a função
@@ -461,7 +510,7 @@ EndFunction
 ;;
 Event OnConsoleDismount(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: Dismount [<Actor RefID>].")
+  PrintMessage("Format: Dismount [<Actor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -472,21 +521,20 @@ Event OnConsoleDismount(String EventName, String sArgument, Float fArgument, For
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   If akActor.IsOnMount()
     akActor.Dismount()
     PrintMessage(self.GetFullID(akActor) + " was dismounted from " + self.GetFullID(PO3_SKSEFunctions.GetMount(akActor)))
   Else
-    PrintMessage(self.GetFullID(akActor) + " is not mounted.")
+    PrintMessage(self.GetFullID(akActor) + " is not mounted")
   EndIf
 EndEvent
 
-
 Event OnConsoleGetActorWarmthRating(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetActorWarmthRating [<Actor RefID>].")
+  PrintMessage("Format: GetActorWarmthRating [<Actor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -497,78 +545,74 @@ Event OnConsoleGetActorWarmthRating(String EventName, String sArgument, Float fA
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   String warmthRating = akActor.GetWarmthRating()
   If warmthRating == ""
-    PrintMessage("Warmth rating for " + self.GetFullID(akActor) + " not found.")
+    PrintMessage("Warmth rating for " + self.GetFullID(akActor) + " not found")
     Return
   EndIf
-  PrintMessage("Warmth rating for " + self.GetFullID(akActor) + ": " + warmthRating + ".")
+  PrintMessage("Warmth rating for " + self.GetFullID(akActor) + ": " + warmthRating)
 EndEvent
-
 
 Event OnConsoleGetArmorWarmthRating(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetArmorWarmthRating [<Armor RefID>].")
+  PrintMessage("Format: GetArmorWarmthRating [<Armor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   String warmthRating = akArmor.GetWarmthRating()
   If warmthRating == ""
-    PrintMessage("Warmth rating for " + self.GetFullID(akArmor) + " not found.")
+    PrintMessage("Warmth rating for " + self.GetFullID(akArmor) + " not found")
     Return
   EndIf
-  PrintMessage("Warmth rating for " + self.GetFullID(akArmor) + ": " + warmthRating + ".")
+  PrintMessage("Warmth rating for " + self.GetFullID(akArmor) + ": " + warmthRating)
 EndEvent
-
 
 Event OnConsoleGetArmorArmorRating(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetArmorArmorRating [<Armor RefID>].")
+  PrintMessage("Format: GetArmorArmorRating [<Armor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   String ArmorRating = akArmor.GetArmorRating()
   If ArmorRating == ""
-    PrintMessage("Armor rating for " + self.GetFullID(akArmor) + " not found.")
+    PrintMessage("Armor rating for " + self.GetFullID(akArmor) + " not found")
     Return
   EndIf
-  PrintMessage("Armor rating for " + self.GetFullID(akArmor) + ": " + ArmorRating + ".")
+  PrintMessage("Armor rating for " + self.GetFullID(akArmor) + ": " + ArmorRating)
 EndEvent
-
 
 Event OnConsoleSetArmorArmorRating(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SetArmorArmorRating [<Armor RefID>] [Int aiRating].")
+  PrintMessage("Format: SetArmorArmorRating [<Armor RefID>] [Int aiRating]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   int aiRating = self.IntFromSArgument(sArgument, 1)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akArmor.SetArmorRating(aiRating)
-  PrintMessage("Armor rating for " + self.GetFullID(akArmor) + ": " + aiRating + ".")
+  PrintMessage("Armor rating for " + self.GetFullID(akArmor) + ": " + aiRating)
 EndEvent
-
 
 Event OnConsoleMoveToPackageLocation(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: MoveToPackageLocation [<Actor RefID>].")
+  PrintMessage("Format: MoveToPackageLocation [<Actor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -579,17 +623,16 @@ Event OnConsoleMoveToPackageLocation(String EventName, String sArgument, Float f
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akActor.MoveToPackageLocation()
-  PrintMessage(self.GetFullID(akActor) + " was moved to their package location.")
+  PrintMessage(self.GetFullID(akActor) + " was moved to their package location")
 EndEvent
-
 
 Event OnConsoleSetEyeTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SetEyeTexture [<Actor RefID>] <Texture akNewTexture>.")
+  PrintMessage("Format: SetEyeTexture [<Actor RefID>] <Texture akNewTexture>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -603,17 +646,16 @@ Event OnConsoleSetEyeTexture(String EventName, String sArgument, Float fArgument
     akNewTexture = self.FormFromSArgument(sArgument, 2) as TextureSet ; 1 is first function argument, second term in sArgument
   EndIf
   If akActor == none || akNewTexture == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akActor.SetEyeTexture(akNewTexture)
-  PrintMessage("Eye texture of " + self.GetFullID(akActor) + " set to " + self.GetFullID(akNewTexture) + ".")
+  PrintMessage("Eye texture of " + self.GetFullID(akActor) + " set to " + self.GetFullID(akNewTexture))
 EndEvent
-
 
 Event OnConsoleShowBarterMenu(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ShowBarterMenu [<Actor RefID>].")
+  PrintMessage("Format: ShowBarterMenu [<Actor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -626,20 +668,19 @@ Event OnConsoleShowBarterMenu(String EventName, String sArgument, Float fArgumen
   EndIf
   
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   ElseIf akActor == Game.GetPlayer()
-    PrintMessage("You cannot trade with yourself.")
+    PrintMessage("You cannot trade with yourself")
     Return
   EndIf
   akActor.ShowBarterMenu()
-  PrintMessage("Barter menu shown for " + self.GetFullID(akActor) + ".")
+  PrintMessage("Barter menu shown for " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleChangeHeadPart(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ChangeHeadPart [<Actor RefID>] <HeadPart new>.")
+  PrintMessage("Format: ChangeHeadPart [<Actor RefID>] <HeadPart new>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -653,17 +694,16 @@ Event OnConsoleChangeHeadPart(String EventName, String sArgument, Float fArgumen
     hPart = self.FormFromSArgument(sArgument, 2) as HeadPart
   EndIf
   If akActor == none || hPart == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akActor.ChangeHeadPart(hPart)
-  PrintMessage("Head part of " + self.GetFullID(akActor) + " changed to " + self.GetFullID(hPart) + ".")
+  PrintMessage("Head part of " + self.GetFullID(akActor) + " changed to " + self.GetFullID(hPart))
 EndEvent
-
 
 Event OnConsoleReplaceHeadPart(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ReplaceHeadPart [<Actor RefID = GetSelectedReference()>] <HeadPart oldPart> <HeadPart newPart>.")
+  PrintMessage("Format: ReplaceHeadPart [<Actor RefID = GetSelectedReference()>] <HeadPart oldPart> <HeadPart newPart>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -680,17 +720,16 @@ Event OnConsoleReplaceHeadPart(String EventName, String sArgument, Float fArgume
     newPart = self.FormFromSArgument(sArgument, 3) as HeadPart
   EndIf
   If akActor == none || oPart == none || newPart == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akActor.ReplaceHeadPart(oPart, newPart)
-  PrintMessage("Head part " + self.GetFullID(oPart) + " replaced with " + self.GetFullID(newPart) + " on " + self.GetFullID(akActor) + ".")
+  PrintMessage("Head part " + self.GetFullID(oPart) + " replaced with " + self.GetFullID(newPart) + " on " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleUpdateWeight(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: UpdateWeight [<Actor RefID>] <float weight>.")
+  PrintMessage("Format: UpdateWeight [<Actor RefID>] <float weight>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -704,18 +743,17 @@ Event OnConsoleUpdateWeight(String EventName, String sArgument, float fArgument,
     weight = self.FloatFromSArgument(sArgument, 2) as float
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akActor.UpdateWeight(weight) ; 1 is first argument, which is second term in sArgument
   NiOverride.UpdateModelWeight(akActor)
-  PrintMessage("Weight of " + self.GetFullID(akActor) + " updated to " + weight as String + ".")
+  PrintMessage("Weight of " + self.GetFullID(akActor) + " updated to " + weight as String)
 EndEvent
-
 
 Event OnConsoleGetEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetEnchantment [<ObjectReference akRef>].")
+  PrintMessage("Format: GetEnchantment [<ObjectReference akRef>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -726,16 +764,15 @@ Event OnConsoleGetEnchantment(String EventName, String sArgument, Float fArgumen
     akItem = self.RefFromSArgument(sArgument, 1)
   EndIf
   If akItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   Endif
-  PrintMessage("Enchantment of object " + self.GetFullID(akItem) + " is " + self.GetFullID(akItem.GetEnchantment()) + ".")
+  PrintMessage("Enchantment of object " + self.GetFullID(akItem) + " is " + self.GetFullID(akItem.GetEnchantment()))
 EndEvent
-
 
 Event OnConsoleSetEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SetEnchantment [<ObjectReference akRef>] <Enchantment enchantment> <float charges = 100.0>.")
+  PrintMessage("Format: SetEnchantment [<ObjectReference akRef>] <Enchantment enchantment> <float charges = 100.0>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -752,18 +789,17 @@ Event OnConsoleSetEnchantment(String EventName, String sArgument, Float fArgumen
     maxCharge = self.FloatFromSArgument(sArgument, 3, 100.0)
   EndIf
   If akItem == none || e == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akItem.SetEnchantment(e, maxCharge)
-  PrintMessage("Enchantment of object " + self.GetFullID(akItem) + " set to " + self.GetFullID(e) + " with " + maxCharge as String + " charges.")
+  PrintMessage("Enchantment of object " + self.GetFullID(akItem) + " set to " + self.GetFullID(e) + " with " + maxCharge as String + " charges")
 EndEvent
-
 
 Event OnConsoleAddToMap(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   bool CanFast = True
-  PrintMessage("Format: AddToMap [<ObjectReference akRef>] [<bool CanFast = true>].")
+  PrintMessage("Format: AddToMap [<ObjectReference akRef>] [<bool CanFast = true>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -772,7 +808,7 @@ Event OnConsoleAddToMap(String EventName, String sArgument, Float fArgument, For
   If QtyPars == 0
     MapMarker = ConsoleUtil.GetSelectedReference()
     CanFast = True
-    PrintMessage("Fast travel defaulting to true.")
+    PrintMessage("Fast travel defaulting to true")
   ElseIf QtyPars == 1
     MapMarker = self.RefFromSArgument(sArgument, 1)
     If MapMarker == none
@@ -784,17 +820,16 @@ Event OnConsoleAddToMap(String EventName, String sArgument, Float fArgument, For
     CanFast = self.BoolFromSArgument(sArgument, 2)
   EndIf
   If MapMarker == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   MapMarker.AddToMap(CanFast)
-  PrintMessage("Map marker " + self.GetFullID(MapMarker) + " added to map.")
+  PrintMessage("Map marker " + self.GetFullID(MapMarker) + " added to map")
 EndEvent
-
 
 Event OnConsoleAddKeywordToForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: AddKeywordToForm <Form formID> <Keyword formID>.")
+  PrintMessage("Format: AddKeywordToForm <Form formID> <Keyword formID>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -804,17 +839,16 @@ Event OnConsoleAddKeywordToForm(String EventName, String sArgument, Float fArgum
     akKeyword = Keyword.GetKeyword(self.StringFromSArgument(sArgument, 2))
   EndIf
   If akForm == none || akKeyword == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   PO3_SKSEFunctions.AddKeywordToForm(akForm, akKeyword)
-  PrintMessage("Keyword " + self.GetFullID(akKeyword) + " added to " + self.GetFullID(akForm) + ".")
+  PrintMessage("Keyword " + self.GetFullID(akKeyword) + " added to " + self.GetFullID(akForm))
 EndEvent
-
 
 Event OnConsoleRemoveKeywordFromForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: RemoveKeywordFromForm <Form formID> <Keyword formID>.")
+  PrintMessage("Format: RemoveKeywordFromForm <Form formID> <Keyword formID>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -829,19 +863,18 @@ Event OnConsoleRemoveKeywordFromForm(String EventName, String sArgument, Float f
     akForm = self.GetSelectedBase()
   EndIf
   If akForm == none || akKeyword == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   ElseIf akForm.HasKeyword(akKeyword)
-    PrintMessage("Keyword " + self.GetFullID(akKeyword) + " not present in " + self.GetFullID(akForm) + ".")
+    PrintMessage("Keyword " + self.GetFullID(akKeyword) + " not present in " + self.GetFullID(akForm))
   EndIf
   PO3_SKSEFunctions.RemoveKeywordOnForm(akForm, akKeyword)
-  PrintMessage("Keyword " + self.GetFullID(akKeyword) + " removed from " + self.GetFullID(akForm) + ".")
+  PrintMessage("Keyword " + self.GetFullID(akKeyword) + " removed from " + self.GetFullID(akForm))
 EndEvent
-
 
 Event OnConsoleAddKeywordToRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: AddKeywordToRef [<ObjectReference akRef>] <Keyword formID>.")
+  PrintMessage("Format: AddKeywordToRef [<ObjectReference akRef>] <Keyword formID>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -861,17 +894,16 @@ Event OnConsoleAddKeywordToRef(String EventName, String sArgument, Float fArgume
     EndIf
   EndIf
   If akRef == none || akKeyword == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   PO3_SKSEFunctions.AddKeywordToRef(akRef, akKeyword)
-  PrintMessage("Keyword " + self.GetFullID(akKeyword) + " added to " + self.GetFullID(akRef) + ".")
+  PrintMessage("Keyword " + self.GetFullID(akKeyword) + " added to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleRemoveKeywordFromRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: RemoveKeywordFromRef [<ObjectReference akRef>] <Keyword formID>.")
+  PrintMessage("Format: RemoveKeywordFromRef [<ObjectReference akRef>] <Keyword formID>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -891,17 +923,16 @@ Event OnConsoleRemoveKeywordFromRef(String EventName, String sArgument, Float fA
     EndIf
   EndIf
   If akRef == none || akKeyword == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   PO3_SKSEFunctions.RemoveKeywordFromRef(akRef, akKeyword)
-  PrintMessage("Keyword " + self.GetFullID(akKeyword) + " removed from " + self.GetFullID(akRef) + ".")
+  PrintMessage("Keyword " + self.GetFullID(akKeyword) + " removed from " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleEvaluatePackage(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: EvaluatePackage [<Actor RefID>].")
+  PrintMessage("Format: EvaluatePackage [<Actor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -914,18 +945,17 @@ Event OnConsoleEvaluatePackage(String EventName, String sArgument, Float fArgume
   EndIf
 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
 
   akActor.EvaluatePackage()
-  PrintMessage("Package of " + self.GetFullID(akActor) + " is now being evaluated.")
+  PrintMessage("Package of " + self.GetFullID(akActor) + " is now being evaluated")
 EndEvent
-
 
 Event OnConsoleAddKeyIfNeeded(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: AddKeyIfNeeded [<ObjectReference akRef>].")
+  PrintMessage("Format: AddKeyIfNeeded [<ObjectReference akRef>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -938,7 +968,7 @@ Event OnConsoleAddKeyIfNeeded(String EventName, String sArgument, Float fArgumen
   EndIf
 
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -948,15 +978,14 @@ Event OnConsoleAddKeyIfNeeded(String EventName, String sArgument, Float fArgumen
           Game.GetPlayer().AddItem(NeededKey)
       EndIf
   Else
-    PrintMessage("No key needed for reference " + self.GetFullID(akRef) + ".")
+    PrintMessage("No key needed for reference " + self.GetFullID(akRef))
   EndIf
-  PrintMessage("Key added to player if needed.")
+  PrintMessage("Key added to player if needed")
 EndEvent
-
 
 Event OnConsoleForceAddRagdollToWorld(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ForceAddRagdollToWorld [<Actor RefID>].")
+  PrintMessage("Format: ForceAddRagdollToWorld [<Actor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -968,17 +997,16 @@ Event OnConsoleForceAddRagdollToWorld(String EventName, String sArgument, Float 
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ForceAddRagdollToWorld()
-  PrintMessage("Ragdoll added to " + self.GetFullID(akActor) + ".")
+  PrintMessage("Ragdoll added to " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleForceRemoveRagdollFromWorld(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ForceRemoveRagdollFromWorld [<Actor RefID>].")
+  PrintMessage("Format: ForceRemoveRagdollFromWorld [<Actor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -990,13 +1018,12 @@ Event OnConsoleForceRemoveRagdollFromWorld(String EventName, String sArgument, F
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ForceRemoveRagdollFromWorld()
-  PrintMessage("Ragdoll removed from " + self.GetFullID(akActor) + ".")
+  PrintMessage("Ragdoll removed from " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleBite(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -1013,16 +1040,15 @@ Event OnConsoleBite(String EventName, String sArgument, Float fArgument, Form Se
   EndIf
 
   If akTarget == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PlayerRef.StartVampireFeed(akTarget)
 EndEvent
 
-
 Event OnConsoleSetVampire(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SetVampire [<Actor RefID>] [<bool makeVampireLord = true>].")
+  PrintMessage("Format: SetVampire [<Actor RefID>] [<bool makeVampireLord = true>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1057,7 +1083,6 @@ Function SetVampireEyes(Actor akActor, bool makeVampireLord)
     akActor.SetEyeTexture(EyesMaleHumanVampire)
   EndIf
 EndFunction
-
 
 
 Function MakeVampire(Actor akActor, bool makeVampireLord)
@@ -1113,11 +1138,14 @@ Event OnConsoleTurnVampire(String EventName, String sArgument, Float fArgument, 
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  PrintMessage("Only works with a selected reference.")
+  PrintMessage("Only works with a selected reference")
   Actor akTarget = ConsoleUtil.GetSelectedReference() as Actor
   bool makeVampireLord = self.BoolFromSArgument(sArgument, 1, true)
   bool giveSpells = self.BoolFromSArgument(sArgument, 2, true)
   bool specialBond = self.BoolFromSArgument(sArgument, 3, true)
+
+  akTarget.StopCombat()
+  akTarget.StopCombatAlarm()
 
   DLC1VampireChangeImod.Apply()
   
@@ -1166,34 +1194,35 @@ Event OnConsoleTurnVampire(String EventName, String sArgument, Float fArgument, 
   Utility.Wait(1)
   
   Sound.StopInstance(soundInst)
+  
+
+  akTarget.SetUnconscious(false)
 
   DLC1VampireChangeImod.Remove()
 
 EndEvent
 
-
 Event OnConsoleApplyMaterialShader(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ApplyMaterialShader <MaterialObject matObject> <float directionalThresholdAngle>.")
+  PrintMessage("Format: ApplyMaterialShader <MaterialObject matObject> <float directionalThresholdAngle>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  PrintMessage("Only works with a selected reference.")
+  PrintMessage("Only works with a selected reference")
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   MaterialObject akMatObject = self.FormFromSArgument(sArgument, 1) as MaterialObject
   float directionalThresholdAngle = self.FloatFromSArgument(sArgument, 2) as float
   If akRef == none || akMatObject == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.ApplyMaterialShader(akRef, akMatObject, directionalThresholdAngle) 
-  PrintMessage("Material shader " + self.GetFullID(akMatObject) + " applied to " + self.GetFullID(akRef) + ".")
+  PrintMessage("Material shader " + self.GetFullID(akMatObject) + " applied to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleStopAllShaders(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: StopAllShaders [<ObjectReference akRef>].")
+  PrintMessage("Format: StopAllShaders [<ObjectReference akRef>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1204,17 +1233,16 @@ Event OnConsoleStopAllShaders(String EventName, String sArgument, Float fArgumen
     akRef = self.RefFromSArgument(sArgument, 1)
   EndIf
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.StopAllShaders(akRef)
-  PrintMessage("All shaders stopped on " + self.GetFullID(akRef) + ".")
+  PrintMessage("All shaders stopped on " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleStopArtObject(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: StopArtObject [<ObjectReference akRef>] <Art akArt>.")
+  PrintMessage("Format: StopArtObject [<ObjectReference akRef>] <Art akArt>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1228,34 +1256,32 @@ Event OnConsoleStopArtObject(String EventName, String sArgument, Float fArgument
     akArt = self.FormFromSArgument(sArgument,2) as Art
   EndIf
   If akRef == none || akArt == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.StopArtObject(akRef, akArt)
-  PrintMessage("Art object " + self.GetFullID(akArt) + " stopped on " + self.GetFullID(akRef) + ".")
+  PrintMessage("Art object " + self.GetFullID(akArt) + " stopped on " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleSetArtObject(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SetArtObject <VisualEffect akEffect> <Art akArt>.")
+  PrintMessage("Format: SetArtObject <VisualEffect akEffect> <Art akArt>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   VisualEffect akEffect = self.FormFromSArgument(sArgument,1) as VisualEffect
   Art akArt = self.FormFromSArgument(sArgument,2) as Art
   If akEffect == none || akArt == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.SetArtObject(akEffect, akArt)
-  PrintMessage("Art object " + self.GetFullID(akArt) + " set on " + self.GetFullID(akEffect) + ".")
+  PrintMessage("Art object " + self.GetFullID(akArt) + " set on " + self.GetFullID(akEffect))
 EndEvent
-
 
 Event OnConsoleToggleChildNode(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ToggleChildNode [<ObjectReference akRef>] <string nodeName> <bool disable = false>.")
+  PrintMessage("Format: ToggleChildNode [<ObjectReference akRef>] <string nodeName> <bool disable = false>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1273,17 +1299,16 @@ Event OnConsoleToggleChildNode(String EventName, String sArgument, Float fArgume
   EndIf
   
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.ToggleChildNode(akRef, asNodeName, abDisable)
-  PrintMessage("Child node " + asNodeName + " toggled on " + self.GetFullID(akRef) + ".")
+  PrintMessage("Child node " + asNodeName + " toggled on " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleGetAllEffectShaders(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetAllEffectShaders [<ObjectReference akRef>].")
+  PrintMessage("Format: GetAllEffectShaders [<ObjectReference akRef>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1298,9 +1323,9 @@ Event OnConsoleGetAllEffectShaders(String EventName, String sArgument, Float fAr
   int i = 0
   int L = result.Length
   If L > 0
-    PrintMessage("Found " + L + " effect shaders.")
+    PrintMessage("Found " + L + " effect shaders")
   Else
-    PrintMessage("No effect shaders found.")
+    PrintMessage("No effect shaders found")
     Return
   EndIf
   While i < L
@@ -1309,10 +1334,9 @@ Event OnConsoleGetAllEffectShaders(String EventName, String sArgument, Float fAr
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetAllArtObjects(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetAllArtObjects [<ObjectReference akRef>].")
+  PrintMessage("Format: GetAllArtObjects [<ObjectReference akRef>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1326,9 +1350,9 @@ Event OnConsoleGetAllArtObjects(String EventName, String sArgument, Float fArgum
   int i = 0
   int L = result.Length
   If L > 0
-    PrintMessage("Found " + L + " art objects.")
+    PrintMessage("Found " + L + " art objects")
   Else
-    PrintMessage("No art objects found.")
+    PrintMessage("No art objects found")
     Return
   EndIf
   While i < L
@@ -1337,10 +1361,9 @@ Event OnConsoleGetAllArtObjects(String EventName, String sArgument, Float fArgum
   EndWhile
 EndEvent
 
-
 Event OnConsoleFindAllReferencesOfFormType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: FindAllReferencesOfFormType [<ObjectReference akRef>] <int formType> <float afRadius>.")
+  PrintMessage("Format: FindAllReferencesOfFormType [<ObjectReference akRef>] <int formType> <float afRadius>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1360,9 +1383,9 @@ Event OnConsoleFindAllReferencesOfFormType(String EventName, String sArgument, F
   int i = 0
   int L = result.Length
   If L > 0
-    PrintMessage("Found " + L + " references of form type " + formTypeN + ".")
+    PrintMessage("Found " + L + " references of form type " + formTypeN)
   Else
-    PrintMessage("No references of form type " + formTypeN + " found.")
+    PrintMessage("No references of form type " + formTypeN + " found")
     Return
   EndIf
   While i < L
@@ -1370,7 +1393,6 @@ Event OnConsoleFindAllReferencesOfFormType(String EventName, String sArgument, F
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleFindAllReferencesWithKeyword(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -1397,9 +1419,9 @@ Event OnConsoleFindAllReferencesWithKeyword(String EventName, String sArgument, 
   int i = 0
   int L = result.Length
   If L > 0
-    PrintMessage("Found " + L + " references with keyword " + self.GetFullID(keywordOrList) + ".")
+    PrintMessage("Found " + L + " references with keyword " + self.GetFullID(keywordOrList))
   Else
-    PrintMessage("No references with keyword " + self.GetFullID(keywordOrList) + " found.")
+    PrintMessage("No references with keyword " + self.GetFullID(keywordOrList) + " found")
     Return
   EndIf
   While i < L
@@ -1408,10 +1430,9 @@ Event OnConsoleFindAllReferencesWithKeyword(String EventName, String sArgument, 
   EndWhile
 EndEvent
 
-
 Event OnConsoleFindAllReferencesOfType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: FindAllReferencesOfType [<ObjectReference akRef>] <Form type> <float afRadius>.")
+  PrintMessage("Format: FindAllReferencesOfType [<ObjectReference akRef>] <Form type> <float afRadius>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1431,9 +1452,9 @@ Event OnConsoleFindAllReferencesOfType(String EventName, String sArgument, Float
   int i = 0
   int L = result.Length
   If L > 0
-    PrintMessage("Found " + L + " references of type " + self.GetFullID(type) + ".")
+    PrintMessage("Found " + L + " references of type " + self.GetFullID(type))
   Else
-    PrintMessage("No references of type " + self.GetFullID(type) + " found.")
+    PrintMessage("No references of type " + self.GetFullID(type) + " found")
     Return
   EndIf
   While i < L
@@ -1442,10 +1463,9 @@ Event OnConsoleFindAllReferencesOfType(String EventName, String sArgument, Float
   EndWhile
 EndEvent
 
-
 Event OnConsoleSelectCrosshair(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SelectCrosshair.")
+  PrintMessage("Format: SelectCrosshair")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1454,14 +1474,13 @@ Event OnConsoleSelectCrosshair(String EventName, String sArgument, Float fArgume
     PrintMessage("Reference in crosshairs is " + self.GetFullID(akRef) + " based on FormID " + self.GetFullID(akRef.GetBaseObject()))
     SetSelectedReference(akRef)
   Else
-    PrintMessage("No reference in crosshairs.")
+    PrintMessage("No reference in crosshairs")
   EndIf
 EndEvent
 
-
 Event OnConsoleGetRunningPackage(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetRunningPackage [<Actor RefID>].")
+  PrintMessage("Format: GetRunningPackage [<Actor RefID>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1472,81 +1491,76 @@ Event OnConsoleGetRunningPackage(String EventName, String sArgument, Float fArgu
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Package runningPackage = PO3_SKSEFunctions.GetRunningPackage(akActor)
   If runningPackage == none
-    PrintMessage("No running package found.")
+    PrintMessage("No running package found")
     Return
   EndIf
-  PrintMessage("Running package of " + self.GetFullID(akActor) + " is " + self.GetFullID(runningPackage) + ".")
+  PrintMessage("Running package of " + self.GetFullID(akActor) + " is " + self.GetFullID(runningPackage))
 EndEvent
-
 
 Event OnConsoleCreatePersistentForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: CreatePersistentForm <Form formID>.")
+  PrintMessage("Format: CreatePersistentForm <Form formID>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   Form akForm = self.FormFromSArgument(sArgument, 1)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Form newForm = DynamicPersistentForms.Create(akForm)
   PrintMessage("Created form " + self.GetFullID(newForm))
 EndEvent
 
-
 Event OnConsoleDisposeOfPersistentForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: DisposeOfPersistentForm <Form formID>.")
+  PrintMessage("Format: DisposeOfPersistentForm <Form formID>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   Form akForm = self.FormFromSArgument(sArgument, 1)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   DynamicPersistentForms.Dispose(akForm)
   PrintMessage("Disposed of form " + self.GetFullID(akForm))
 EndEvent
 
-
 Event OnConsoleTrackForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: TrackForm <Form formID>.")
+  PrintMessage("Format: TrackForm <Form formID>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   Form akForm = self.FormFromSArgument(sArgument, 1)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   DynamicPersistentForms.Track(akForm)
-  PrintMessage("Tracking form " + self.GetFullID(akForm) + ".")
+  PrintMessage("Tracking form " + self.GetFullID(akForm))
 EndEvent
-
 
 Event OnConsoleUntrackForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: UntrackForm <Form formID>.")
+  PrintMessage("Format: UntrackForm <Form formID>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   Form akForm = self.FormFromSArgument(sArgument, 1)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   DynamicPersistentForms.Untrack(akForm)
-  PrintMessage("No longer tracking form " + self.GetFullID(akForm) + ".")
+  PrintMessage("No longer tracking form " + self.GetFullID(akForm))
 EndEvent
-
 
 Event OnConsoleAddMagicEffect(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -1561,17 +1575,16 @@ Event OnConsoleAddMagicEffect(String EventName, String sArgument, Float fArgumen
   int duration = self.IntFromSArgument(sArgument, 5)
   float cost = self.FloatFromSArgument(sArgument, 6)
   If akForm == none || akEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   DynamicPersistentForms.AddMagicEffect(akForm, akEffect, magnitude, area, duration, cost)
-  PrintMessage("Magic effect " + self.GetFullID(akEffect) + " added to " + self.GetFullID(akForm) + ".")
+  PrintMessage("Magic effect " + self.GetFullID(akEffect) + " added to " + self.GetFullID(akForm))
 EndEvent
-
 
 Event OnConsoleGetRefAliases(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetRefAliases [<ObjectReference akRef>].")
+  PrintMessage("Format: GetRefAliases [<ObjectReference akRef>]")
 
   ObjectReference akRef
   If QtyPars == 0
@@ -1581,7 +1594,7 @@ Event OnConsoleGetRefAliases(String EventName, String sArgument, Float fArgument
   EndIf
 
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -1589,9 +1602,9 @@ Event OnConsoleGetRefAliases(String EventName, String sArgument, Float fArgument
   int i = 0
   int L = aliases.Length
   If L > 0
-    PrintMessage("Found " + L + " aliases.")
+    PrintMessage("Found " + L + " aliases")
   Else
-    PrintMessage("No aliases found.")
+    PrintMessage("No aliases found")
     Return
   EndIf
   While i < L
@@ -1600,10 +1613,9 @@ Event OnConsoleGetRefAliases(String EventName, String sArgument, Float fArgument
   EndWhile
 EndEvent
 
-
 Event OnConsoleShowMenu(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ShowMenu <string MenuName>.")
+  PrintMessage("Format: ShowMenu <string MenuName>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("MENU NAME HELP")
     PrintMessage("=========================")
@@ -1648,33 +1660,31 @@ Event OnConsoleShowMenu(String EventName, String sArgument, Float fArgument, For
   EndIf
   String UIName = DbMiscFunctions.RemovePrefixFromString(sArgument, self.StringFromSArgument(sArgument, 0) + " ")
   If UIName == ""
-    PrintMessage("FATAL ERROR: You must type a MenuName.")
+    PrintMessage("FATAL ERROR: You must type a MenuName")
     Return
   EndIf
   PO3_SKSEFunctions.ShowMenu(UIName)
-  PrintMessage("Menu " + UIName + " shown.")
+  PrintMessage("Menu " + UIName + " shown")
 EndEvent
-
 
 Event OnConsoleHideMenu(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: HideMenu <string MenuName>.")
+  PrintMessage("Format: HideMenu <string MenuName>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   String UIName = DbMiscFunctions.RemovePrefixFromString(sArgument, self.StringFromSArgument(sArgument, 0) + " ")
   If UIName == ""
-    PrintMessage("FATAL ERROR: You must type a MenuName.")
+    PrintMessage("FATAL ERROR: You must type a MenuName")
     Return
   EndIf
   PO3_SKSEFunctions.HideMenu(UIName)
-  PrintMessage("Menu " + UIName + " hidden.")
+  PrintMessage("Menu " + UIName + " hidden")
 EndEvent
-
 
 Event OnConsoleToggleOpenSleepWaitMenu(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ToggleOpenSleepWaitMenu <bool abSleep = false>.")
+  PrintMessage("Format: ToggleOpenSleepWaitMenu <bool abSleep = false>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -1682,10 +1692,9 @@ Event OnConsoleToggleOpenSleepWaitMenu(String EventName, String sArgument, Float
   PO3_SKSEFunctions.ToggleOpenSleepWaitMenu(abSleep)
 EndEvent
 
-
 Event OnConsoleVCSHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("VCSHelp [<string helpString>].")
+  PrintMessage("VCSHelp [<string helpString>]")
 
   PrintMessage("CCFE_VictorCustomScript Help")
   PrintMessage("======================================================================")
@@ -2278,13 +2287,13 @@ Event OnConsoleVCSHelp(String EventName, String sArgument, Float fArgument, Form
     helpMsg_5[64] = "GetActorbaseSex"
     helpMsg_5[65] = "SetActorbaseInvulnerable"
     helpMsg_5[66] = "GetKeyword"
-    helpMsg_5[67] = "GetActorbaseVoiceType"
-    helpMsg_5[68] = "SetActorbaseVoiceType"
-    helpMsg_5[69] = "GetActorbaseCombatStyle"
-    helpMsg_5[70] = "SetActorbaseCombatStyle"
-    helpMsg_5[71] = "GetActorbaseWeight"
-    helpMsg_5[72] = "SetActorbaseWeight"
-    helpMsg_5[73] = "GetActorDialogueTarget"
+    helpMsg_5[67] = "GetActorbaseVoiceType (GetABVT)"
+    helpMsg_5[68] = "SetActorbaseVoiceType (SetABVT)"
+    helpMsg_5[69] = "GetActorbaseCombatStyle (GetABCS)"
+    helpMsg_5[70] = "SetActorbaseCombatStyle (SetABCS)"
+    helpMsg_5[71] = "GetActorbaseWeight (GetABWeight)"
+    helpMsg_5[72] = "SetActorbaseWeight (SetABWeight)"
+    helpMsg_5[73] = "GetActorDialogueTarget (GetDialogueTarget)"
     helpMsg_5[74] = "SetCameraTarget"
     helpMsg_5[75] = "GetActorFactions (GetFactions)"
     helpMsg_5[76] = "GetFactionInformation (GetFactInfo)"
@@ -2416,59 +2425,188 @@ Event OnConsoleVCSHelp(String EventName, String sArgument, Float fArgument, Form
     helpMsg_6[72] = "ShowTNGLogLocation"
     helpMsg_6[73] = "GetTNGErrDscr"
     helpMsg_6[74] = "TNGWhyProblem"
-    helpMsg_6[75] = ""
-    helpMsg_6[76] = ""
-    helpMsg_6[77] = ""
-    helpMsg_6[78] = ""
-    helpMsg_6[79] = ""
-    helpMsg_6[80] = ""
-    helpMsg_6[81] = ""
-    helpMsg_6[82] = ""
-    helpMsg_6[83] = ""
-    helpMsg_6[84] = ""
-    helpMsg_6[85] = ""
-    helpMsg_6[86] = ""
-    helpMsg_6[87] = ""
-    helpMsg_6[88] = ""
-    helpMsg_6[89] = ""
-    helpMsg_6[90] = ""
-    helpMsg_6[91] = ""
-    helpMsg_6[92] = ""
-    helpMsg_6[93] = ""
-    helpMsg_6[94] = ""
-    helpMsg_6[95] = ""
-    helpMsg_6[96] = ""
-    helpMsg_6[97] = ""
-    helpMsg_6[98] = ""
-    helpMsg_6[99] = ""
-    helpMsg_6[100] = ""
-    helpMsg_6[101] = ""
-    helpMsg_6[102] = ""
-    helpMsg_6[103] = ""
-    helpMsg_6[104] = ""
-    helpMsg_6[105] = ""
-    helpMsg_6[106] = ""
-    helpMsg_6[107] = ""
-    helpMsg_6[108] = ""
-    helpMsg_6[109] = ""
-    helpMsg_6[110] = ""
-    helpMsg_6[111] = ""
-    helpMsg_6[112] = ""
-    helpMsg_6[113] = ""
-    helpMsg_6[114] = ""
-    helpMsg_6[115] = ""
-    helpMsg_6[116] = ""
-    helpMsg_6[117] = ""
-    helpMsg_6[118] = ""
-    helpMsg_6[119] = ""
-    helpMsg_6[120] = ""
-    helpMsg_6[121] = ""
-    helpMsg_6[122] = ""
-    helpMsg_6[123] = ""
-    helpMsg_6[124] = ""
-    helpMsg_6[125] = ""
-    helpMsg_6[126] = ""
-    helpMsg_6[127] = ""
+    helpMsg_6[75] = "GetCSOffensiveMult"
+    helpMsg_6[76] = "GetCSDefensiveMult"
+    helpMsg_6[77] = "GetCSGroupOffensiveMult"
+    helpMsg_6[78] = "GetCSAvoidThreatChance"
+    helpMsg_6[79] = "GetCSMeleeMult"
+    helpMsg_6[80] = "GetCSRangedMult"
+    helpMsg_6[81] = "GetCSMagicMult"
+    helpMsg_6[82] = "GetCSShoutMult"
+    helpMsg_6[83] = "GetCSStaffMult"
+    helpMsg_6[84] = "GetCSUnarmedMult"
+    helpMsg_6[85] = "SetCSOffensiveMult"
+    helpMsg_6[86] = "SetCSDefensiveMult"
+    helpMsg_6[87] = "SetCSGroupOffensiveMult"
+    helpMsg_6[88] = "SetCSAvoidThreatChance"
+    helpMsg_6[89] = "SetCSMeleeMult"
+    helpMsg_6[90] = "SetCSRangedMult"
+    helpMsg_6[91] = "SetCSMagicMult"
+    helpMsg_6[92] = "SetCSShoutMult"
+    helpMsg_6[93] = "SetCSStaffMult"
+    helpMsg_6[94] = "SetCSUnarmedMult"
+    helpMsg_6[95] = "GetCSMeleeAttackStaggeredMult"
+    helpMsg_6[96] = "GetCSMeleePowerAttackStaggeredMult"
+    helpMsg_6[97] = "GetCSMeleePowerAttackBlockingMult"
+    helpMsg_6[98] = "GetCSMeleeBashMult"
+    helpMsg_6[99] = "GetCSMeleeBashRecoiledMult"
+    helpMsg_6[100] = "GetCSMeleeBashAttackMult"
+    helpMsg_6[101] = "GetCSMeleeBashPowerAttackMult"
+    helpMsg_6[102] = "GetCSMeleeSpecialAttackMult"
+    helpMsg_6[103] = "GetCSAllowDualWielding"
+    helpMsg_6[104] = "SetCSMeleeAttackStaggeredMult"
+    helpMsg_6[105] = "SetCSMeleePowerAttackStaggeredMult"
+    helpMsg_6[106] = "SetCSMeleePowerAttackBlockingMult"
+    helpMsg_6[107] = "SetCSMeleeBashMult"
+    helpMsg_6[108] = "SetCSMeleeBashRecoiledMult"
+    helpMsg_6[109] = "SetCSMeleeBashAttackMult"
+    helpMsg_6[110] = "SetCSMeleeBashPowerAttackMult"
+    helpMsg_6[111] = "SetCSMeleeSpecialAttackMult"
+    helpMsg_6[112] = "SetCSAllowDualWielding"
+    helpMsg_6[113] = "GetCSCloseRangeDuelingCircleMult"
+    helpMsg_6[114] = "GetCSCloseRangeDuelingFallbackMult"
+    helpMsg_6[115] = "GetCSCloseRangeFlankingFlankDistance"
+    helpMsg_6[116] = "GetCSCloseRangeFlankingStalkTime"
+    helpMsg_6[117] = "SetCSCloseRangeDuelingCircleMult"
+    helpMsg_6[118] = "SetCSCloseRangeDuelingFallbackMult"
+    helpMsg_6[119] = "SetCSCloseRangeFlankingFlankDistance"
+    helpMsg_6[120] = "SetCSCloseRangeFlankingStalkTime"
+    helpMsg_6[121] = "GetCSLongRangeStrafeMult"
+    helpMsg_6[122] = "SetCSLongRangeStrafeMult"
+    helpMsg_6[123] = "GetCSFlightHoverChance"
+    helpMsg_6[124] = "GetCSFlightDiveBombChance"
+    helpMsg_6[125] = "GetCSFlightFlyingAttackChance"
+    helpMsg_6[126] = "SetCSFlightHoverChance"
+    helpMsg_6[127] = "SetCSFlightDiveBombChance"
+  String[] helpMsg_7 = new String[128]
+    helpMsg_7[0] = ""
+    helpMsg_7[1] = ""
+    helpMsg_7[2] = "SetSILNakedSlotMask"
+    helpMsg_7[3] = "GetAnimationEventName"
+    helpMsg_7[4] = "GetAnimationFileName"
+    helpMsg_7[5] = "SetObjectiveText"
+    helpMsg_7[6] = "RemoveInvalidConstructibleObjects (RemoveCOs)"
+    helpMsg_7[7] = "GetAllOutfitParts"
+    helpMsg_7[8] = "GetAllTexturePaths"
+    helpMsg_7[9] = "GetAutorunLines"
+    helpMsg_7[10] = "AddAutorunLine"
+    helpMsg_7[11] = "RemoveAutorunLine"
+    helpMsg_7[12] = "AddFormsToFormlist"
+    helpMsg_7[13] = "AddFormToFormlists"
+    helpMsg_7[14] = "CopyKeywords"
+    helpMsg_7[15] = "AddKeywordsToForm"
+    helpMsg_7[16] = "RemoveKeywordsFromForm"
+    helpMsg_7[17] = "AddKeywordToForms"
+    helpMsg_7[18] = "RemoveKeywordFromForms"
+    helpMsg_7[19] = "FindEffectOnActor"
+    helpMsg_7[20] = "FindKeywordOnForm"
+    helpMsg_7[21] = "PlaceBefore"
+    helpMsg_7[22] = "GetWornForms"
+    helpMsg_7[23] = "RemoveDecals"
+    helpMsg_7[24] = ""
+    helpMsg_7[25] = "RefreshItemMenu"
+    helpMsg_7[26] = "GetArtObjectNthTextureSet"
+    helpMsg_7[27] = "SetArtObjectNthTextureSet"
+    helpMsg_7[28] = "GetRaceSlotMask"
+    helpMsg_7[29] = "SetRaceSlotMask"
+    helpMsg_7[30] = "AddRaceSlotToMask"
+    helpMsg_7[31] = "RemoveRaceSlotFromMask"
+    helpMsg_7[32] = "GetAllArmorsForSlotMask"
+    helpMsg_7[33] = "AddAdditionalRaceToArmorAddon"
+    helpMsg_7[34] = "RemoveAdditionalRaceFromArmorAddon"
+    helpMsg_7[35] = "RaceSlotMaskHasPartOf"
+    helpMsg_7[36] = "ArmorSlotMaskHasPartOf"
+    helpMsg_7[37] = "ArmorAddonSlotMaskHasPartOf"
+    helpMsg_7[38] = "GetArmorAddonRaces"
+    helpMsg_7[39] = "ArmorAddonHasRace"
+    helpMsg_7[40] = "SetMapMarkerVisible"
+    helpMsg_7[41] = "SetCanFastTravelToMarker"
+    helpMsg_7[42] = "GetKnownEnchantments"
+    helpMsg_7[43] = "Reload"
+    helpMsg_7[44] = "GetRaceSlots"
+    helpMsg_7[45] = "StartWhiterunAttack"
+    helpMsg_7[46] = "OpenCustomSkillMenu"
+    helpMsg_7[47] = "ShowCustomTrainingMenu"
+    helpMsg_7[48] = "AdvanceCustomSkill (AdvCSkill)"
+    helpMsg_7[49] = "IncrementCustomSkill (IncCSkill)"
+    helpMsg_7[50] = "GetSkillName"
+    helpMsg_7[51] = "GetSkillLevel"
+    helpMsg_7[52] = "PacifyActor (Pacify)"
+    helpMsg_7[53] = "WhyHostile"
+    helpMsg_7[54] = "GetActorRefraction"
+    helpMsg_7[55] = "ReplaceArmorTextureSet"
+    helpMsg_7[56] = "GetLightingTemplate"
+    helpMsg_7[57] = "SetLightingTemplate"
+    helpMsg_7[58] = "GetVendorFactionContainer"
+    helpMsg_7[59] = "GetRefNodeNames"
+    helpMsg_7[60] = "SetExpressionPhoneme"
+    helpMsg_7[61] = "SetExpressionModifier"
+    helpMsg_7[62] = "ResetExpressionOverrides"
+    helpMsg_7[63] = "ShowAsHelpMessage"
+    helpMsg_7[64] = "ResetHelpMessage"
+    helpMsg_7[65] = ""
+    helpMsg_7[66] = ""
+    helpMsg_7[67] = ""
+    helpMsg_7[68] = ""
+    helpMsg_7[69] = ""
+    helpMsg_7[70] = ""
+    helpMsg_7[71] = ""
+    helpMsg_7[72] = ""
+    helpMsg_7[73] = ""
+    helpMsg_7[74] = ""
+    helpMsg_7[75] = ""
+    helpMsg_7[76] = ""
+    helpMsg_7[77] = ""
+    helpMsg_7[78] = ""
+    helpMsg_7[79] = ""
+    helpMsg_7[80] = ""
+    helpMsg_7[81] = ""
+    helpMsg_7[82] = ""
+    helpMsg_7[83] = ""
+    helpMsg_7[84] = ""
+    helpMsg_7[85] = ""
+    helpMsg_7[86] = ""
+    helpMsg_7[87] = ""
+    helpMsg_7[88] = ""
+    helpMsg_7[89] = ""
+    helpMsg_7[90] = ""
+    helpMsg_7[91] = ""
+    helpMsg_7[92] = ""
+    helpMsg_7[93] = ""
+    helpMsg_7[94] = ""
+    helpMsg_7[95] = ""
+    helpMsg_7[96] = ""
+    helpMsg_7[97] = ""
+    helpMsg_7[98] = ""
+    helpMsg_7[99] = ""
+    helpMsg_7[100] = ""
+    helpMsg_7[101] = ""
+    helpMsg_7[102] = ""
+    helpMsg_7[103] = ""
+    helpMsg_7[104] = ""
+    helpMsg_7[105] = ""
+    helpMsg_7[106] = ""
+    helpMsg_7[107] = ""
+    helpMsg_7[108] = ""
+    helpMsg_7[109] = ""
+    helpMsg_7[110] = ""
+    helpMsg_7[111] = ""
+    helpMsg_7[112] = ""
+    helpMsg_7[113] = ""
+    helpMsg_7[114] = ""
+    helpMsg_7[115] = ""
+    helpMsg_7[116] = ""
+    helpMsg_7[117] = ""
+    helpMsg_7[118] = ""
+    helpMsg_7[119] = ""
+    helpMsg_7[120] = ""
+    helpMsg_7[121] = ""
+    helpMsg_7[122] = ""
+    helpMsg_7[123] = ""
+    helpMsg_7[124] = ""
+    helpMsg_7[125] = ""
+    helpMsg_7[126] = ""
+    helpMsg_7[127] = ""
   
   String searchTerm = self.StringFromSArgument(sArgument, 1)
   Bool found = false
@@ -2499,20 +2637,23 @@ Event OnConsoleVCSHelp(String EventName, String sArgument, Float fArgument, Form
       PrintMessage(helpMsg_6[i])
       found = true
     EndIf
+    If StringUtil.Find(helpMsg_7[i], searchTerm) != -1 || QtyPars == 0
+      PrintMessage(helpMsg_7[i])
+      found = true
+    EndIf
     i += 1
   Endwhile
 
   if !found
-    PrintMessage("No matching help message found.")
+    PrintMessage("No matching help message found")
   endif
   PrintMessage("======================================================================")
 
 EndEvent
 
-
 Event OnConsoleFormtypeHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("FormTypeHelp [<string helpString>].")
+  PrintMessage("FormTypeHelp [<string helpString>]")
   
   String[] FormTypeFlags = new String[128]
   String[] FormTypeFlags_2 = new String[127]
@@ -2674,7 +2815,6 @@ Event OnConsoleFormtypeHelp(String EventName, String sArgument, Float fArgument,
 
 EndEvent
 
-
 Event OnConsoleReplaceArmorTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: ReplaceArmorTextureSet(Actor akActor, Armor akArmor, TextureSet akSourceTXST, TextureSet akTargetTXST, int aiTextureType = -1") 
@@ -2704,13 +2844,12 @@ Event OnConsoleReplaceArmorTextureSet(String EventName, String sArgument, Float 
   int aiTextureType = self.IntFromSArgument(sArgument, index + 4)
   
   If akActor == none || akArmor == none || akSourceTXST == none || akTargetTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.ReplaceArmorTextureSet(akActor, akArmor, akSourceTXST, akTargetTXST, aiTextureType)
   PrintMessage("Replaced " + self.GetFullID(akArmor) + " texture set of " + self.GetFullID(akActor) + " from " + self.GetFullID(akSourceTXST) + " to " + self.GetFullID(akTargetTXST))
 EndEvent
-
 
 Event OnConsoleReplaceFaceTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -2741,13 +2880,12 @@ Event OnConsoleReplaceFaceTextureSet(String EventName, String sArgument, Float f
   int aiTextureType = self.IntFromSArgument(sArgument, index + 3)
   
   If akActor == none || akMaleTXST == none || akFemaleTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.ReplaceFaceTextureSet(akActor, akMaleTXST, akFemaleTXST, aiTextureType)
   PrintMessage("Replaced face texture set of " + self.GetFullID(akActor) + " with " + self.GetFullID(akMaleTXST) + " and " + self.GetFullID(akFemaleTXST))
 EndEvent
-
 
 Event OnConsoleReplaceSkinTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -2781,7 +2919,7 @@ Event OnConsoleReplaceSkinTextureSet(String EventName, String sArgument, Float f
 
   If akActor == none || akMaleTXST == none || akFemaleTXST == none
     
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -2790,7 +2928,6 @@ Event OnConsoleReplaceSkinTextureSet(String EventName, String sArgument, Float f
 
 EndEvent
 
-
 Event OnConsoleGetHairColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetActorHairColor(Actor akActor)")
@@ -2798,7 +2935,7 @@ Event OnConsoleGetHairColor(String EventName, String sArgument, Float fArgument,
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -2806,7 +2943,6 @@ Event OnConsoleGetHairColor(String EventName, String sArgument, Float fArgument,
   
   PrintMessage("Hair color of " + self.GetFullID(akActor) + " is " + self.GetFullID(akColor))
 EndEvent
-
 
 Event OnConsoleSetHairColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -2839,7 +2975,6 @@ Event OnConsoleSetHairColor(String EventName, String sArgument, Float fArgument,
   PrintMessage("Set hair color of " + self.GetFullID(akActor) + " as " + self.GetFullID(akColor))
 EndEvent
 
-
 Event OnConsoleGetHeadPartTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetHeadPartTextureSet(Actor akActor, int aiType)")
@@ -2862,14 +2997,13 @@ Event OnConsoleGetHeadPartTextureSet(String EventName, String sArgument, Float f
   int aiType = self.IntFromSArgument(sArgument, 1)
 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
 
   TextureSet headpartTXST = PO3_SKSEFunctions.GetHeadPartTextureSet(akActor, aiType)
   PrintMessage("Head part texture set #" + aiType + " of " + self.GetFullID(akActor) + " is " + self.GetFullID(headpartTXST))
 EndEvent
-
 
 Event OnConsoleSetHeadPartTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -2893,14 +3027,13 @@ Event OnConsoleSetHeadPartTextureSet(String EventName, String sArgument, Float f
   int aiType = self.IntFromSArgument(sArgument, 2)
 
   If akActor == none || headpartTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
 
   PO3_SKSEFunctions.SetHeadPartTextureSet(akActor, headpartTXST, aiType)
   PrintMessage("Set head part texture set of " + self.GetFullID(akActor) + " as " + self.GetFullID(headpartTXST))
 EndEvent
-
 
 Event OnConsoleGetSkinColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -2912,7 +3045,7 @@ Event OnConsoleGetSkinColor(String EventName, String sArgument, Float fArgument,
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -2920,7 +3053,6 @@ Event OnConsoleGetSkinColor(String EventName, String sArgument, Float fArgument,
 
   PrintMessage("Skin color of " + self.GetFullID(akActor) + " is " + self.GetFullID(akColor))
 EndEvent
-
 
 Event OnConsoleSetSkinColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -2946,14 +3078,13 @@ Event OnConsoleSetSkinColor(String EventName, String sArgument, Float fArgument,
   EndIf
   
   If akActor == none || akColor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetSkinColor(akActor, akColor)
   PrintMessage("Set skin color of " + self.GetFullID(akActor) + " as " + self.GetFullID(akColor))
 EndEvent
-
 
 Event OnConsoleSetSkinAlpha(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -2966,14 +3097,13 @@ Event OnConsoleSetSkinAlpha(String EventName, String sArgument, Float fArgument,
   float afAlpha = self.FloatFromSArgument(sArgument, 1)
 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetSkinAlpha(akActor, afAlpha)
   PrintMessage("Set skin alpha of " + self.GetFullID(akActor) + " as " + afAlpha)
 EndEvent
-
 
 Event OnConsoleSetKey(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -2993,14 +3123,13 @@ Event OnConsoleSetKey(String EventName, String sArgument, Float fArgument, Form 
   EndIf
 
   If akRef == none || akKey == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetKey(akRef, akKey)
   PrintMessage("Set key of " + self.GetFullID(akRef) + " as " + self.GetFullID(akKey))
 EndEvent
-
 
 Event OnConsoleMarkItemAsFavorite(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3012,14 +3141,13 @@ Event OnConsoleMarkItemAsFavorite(String EventName, String sArgument, Float fArg
   Form akForm = self.FormFromSArgument(sArgument, 1)
 
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.MarkItemAsFavorite(akForm)
   PrintMessage("Marked item " + self.GetFullID(akForm) + " as favorite")
 EndEvent
-
 
 Event OnConsoleUnmarkItemAsFavorite(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3031,14 +3159,13 @@ Event OnConsoleUnmarkItemAsFavorite(String EventName, String sArgument, Float fA
   Form akForm = self.FormFromSArgument(sArgument, 1)
 
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.UnmarkItemAsFavorite(akForm)
   PrintMessage("Unmarked item " + self.GetFullID(akForm) + " as favorite")
 EndEvent
-
 
 Event OnConsoleSetSoundDescriptor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3048,14 +3175,13 @@ Event OnConsoleSetSoundDescriptor(String EventName, String sArgument, Float fArg
   SoundDescriptor akSoundDescriptor = self.FormFromSArgument(sArgument, 2) as SoundDescriptor
 
   If akSound == none || akSoundDescriptor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetSoundDescriptor(akSound, akSoundDescriptor)
   PrintMessage("Set sound descriptor of sound " + self.GetFullID(akSound) + " as " + self.GetFullID(akSoundDescriptor))
 EndEvent
-
 
 Event OnConsoleCreateSoundMarker(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3064,7 +3190,7 @@ Event OnConsoleCreateSoundMarker(String EventName, String sArgument, Float fArgu
   Sound akSound = DbSKSEFunctions.CreateSoundMarker()
 
   If akSound == none
-    PrintMessage("Failed to create sound marker.")
+    PrintMessage("Failed to create sound marker")
     Return
   EndIf
 
@@ -3102,7 +3228,7 @@ Event OnConsolePlaySound(String EventName, String sArgument, Float fArgument, Fo
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  PrintMessage("!! akSource is the selected reference.")
+  PrintMessage("!! akSource is the selected reference")
 
   Sound akSound = self.FormFromSArgument(sArgument, 1) as Sound
   ObjectReference akSource = ConsoleUtil.GetSelectedReference()
@@ -3118,7 +3244,7 @@ Event OnConsolePlaySound(String EventName, String sArgument, Float fArgument, Fo
   ; EndIf
 
   If akSound == none || akSource == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -3126,14 +3252,13 @@ Event OnConsolePlaySound(String EventName, String sArgument, Float fArgument, Fo
   PrintMessage("Played sound " + self.GetFullID(akSound) + " from " + self.GetFullID(akSource))
 EndEvent
 
-
 Event OnConsolePlaySoundDescriptor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: PlaySoundDescriptor(SoundDescriptor akSoundDescriptor, [ObjectReference akSource], float volume = 1.0, Form eventReceiverForm = none, Alias eventReceiverAlias = none, activeMagicEffect eventReceiverActiveEffect = none)")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  PrintMessage("!! akSource is the selected reference.")
+  PrintMessage("!! akSource is the selected reference")
 
   SoundDescriptor akSoundDescriptor
   ObjectReference akSource
@@ -3165,14 +3290,13 @@ Event OnConsolePlaySoundDescriptor(String EventName, String sArgument, Float fAr
   eventReceiverActiveEffect = GetFirstActiveMagicEffectOfType(akSource, eventReceiverEffect)
 
   If akSoundDescriptor == none || akSource == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   DbSKSEFunctions.PlaySoundDescriptor(akSoundDescriptor, akSource, volume, eventReceiverForm, eventReceiverAlias, eventReceiverActiveEffect)
   PrintMessage("Played sound descriptor " + self.GetFullID(akSoundDescriptor) + " from " + self.GetFullID(akSource))
 EndEvent
-
 
 Event OnConsoleClearMagicEffects(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3184,15 +3308,14 @@ Event OnConsoleClearMagicEffects(String EventName, String sArgument, Float fArgu
   Form item = self.FormFromSArgument(sArgument, 1)
 
   If item == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
       
   DynamicPersistentForms.ClearMagicEffects(item)
   
-  PrintMessage("Cleared magic effects from " + self.GetFullID(item) + ".")
+  PrintMessage("Cleared magic effects from " + self.GetFullID(item))
 EndEvent
-
 
 Event OnConsoleCopyMagicEffects(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3206,7 +3329,7 @@ Event OnConsoleCopyMagicEffects(String EventName, String sArgument, Float fArgum
   bool abPermanent = self.BoolFromSArgument(sArgument, 3, true)
 
   If akSource == none || akTarget == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -3216,9 +3339,8 @@ Event OnConsoleCopyMagicEffects(String EventName, String sArgument, Float fArgum
 
   DynamicPersistentForms.CopyMagicEffects(akSource, akTarget)
   
-  PrintMessage("Copied magic effects from " + self.GetFullID(akSource) + " to " + self.GetFullID(akTarget) + ".")
+  PrintMessage("Copied magic effects from " + self.GetFullID(akSource) + " to " + self.GetFullID(akTarget))
 EndEvent
-
 
 Event OnConsoleCopyAppearance(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3232,7 +3354,7 @@ Event OnConsoleCopyAppearance(String EventName, String sArgument, Float fArgumen
   bool abPermanent = self.BoolFromSArgument(sArgument, 3, true)
 
   If akSource == none || akTarget == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -3242,9 +3364,8 @@ Event OnConsoleCopyAppearance(String EventName, String sArgument, Float fArgumen
     DynamicPersistentForms.Track(akTarget)
   EndIf
   
-  PrintMessage("Copied appearance from " + self.GetFullID(akSource) + " to " + self.GetFullID(akTarget) + ".")
+  PrintMessage("Copied appearance from " + self.GetFullID(akSource) + " to " + self.GetFullID(akTarget))
 EndEvent
-
 
 Event OnConsoleSetSpellTomeSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3257,13 +3378,12 @@ Event OnConsoleSetSpellTomeSpell(String EventName, String sArgument, Float fArgu
   Spell teaches = self.FormFromSArgument(sArgument, 2) as Spell
 
   If target == none || teaches == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   DynamicPersistentForms.SetSpellTomeSpell(target, teaches)
   PrintMessage("Set " + self.GetFullID(target) + " to teach " + self.GetFullID(teaches))
 EndEvent
-
 
 Event OnConsoleSetSpellAutoCalculate(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3277,7 +3397,7 @@ Event OnConsoleSetSpellAutoCalculate(String EventName, String sArgument, Float f
   bool value = self.BoolFromSArgument(sArgument, 2, true)
 
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -3285,7 +3405,6 @@ Event OnConsoleSetSpellAutoCalculate(String EventName, String sArgument, Float f
   
   PrintMessage("Set " + self.GetFullID(akSpell) + " with autocalculate " + value)
 EndEvent
-
 
 Event OnConsoleSetSpellCostOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3298,7 +3417,7 @@ Event OnConsoleSetSpellCostOverride(String EventName, String sArgument, Float fA
   int value = self.IntFromSArgument(sArgument, 2)
 
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -3306,7 +3425,6 @@ Event OnConsoleSetSpellCostOverride(String EventName, String sArgument, Float fA
   
   PrintMessage("Set " + self.GetFullID(akSpell) + " with cost " + value)
 EndEvent
-
 
 Event OnConsoleSetSpellChargeTime(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3319,14 +3437,13 @@ Event OnConsoleSetSpellChargeTime(String EventName, String sArgument, Float fArg
   float value = self.FloatFromSArgument(sArgument, 2)
 
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   DynamicPersistentForms.SetSpellChargeTime(akSpell, value)
   
   PrintMessage("Set " + self.GetFullID(akSpell) + " with charge time " + value)
 EndEvent
-
 
 Event OnConsoleSetSpellCastDuration(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3339,14 +3456,13 @@ Event OnConsoleSetSpellCastDuration(String EventName, String sArgument, Float fA
   int value = self.IntFromSArgument(sArgument, 2)
 
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   DynamicPersistentForms.SetSpellCastDuration(akSpell, value)
   
   PrintMessage("Set " + self.GetFullID(akSpell) + " with duration " + value)
 EndEvent
-
 
 Event OnConsoleSetSpellRange(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3358,14 +3474,13 @@ Event OnConsoleSetSpellRange(String EventName, String sArgument, Float fArgument
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   int value = self.IntFromSArgument(sArgument, 2)
   If akSpell == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   DynamicPersistentForms.SetSpellRange(akSpell, value)
   
   PrintMessage("Set " + self.GetFullID(akSpell) + " with range " + value)
 EndEvent
-
 
 Event OnConsoleSetSpellCastingPerk(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3377,14 +3492,13 @@ Event OnConsoleSetSpellCastingPerk(String EventName, String sArgument, Float fAr
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   Perk value = self.FormFromSArgument(sArgument, 2) as Perk
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   DynamicPersistentForms.SetSpellCastingPerk(akSpell, value)
   
   PrintMessage("Set " + self.GetFullID(akSpell) + " with casting perk " + self.GetFullID(value))
 EndEvent
-
 
 Event OnConsoleCreateColorForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3401,7 +3515,6 @@ Event OnConsoleCreateColorForm(String EventName, String sArgument, Float fArgume
   PrintMessage("Created ColorForm " + self.GetFullID(result))
 EndEvent
 
-
 Event OnConsoleTeleport(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: Teleport([Cell akDestination | ObjectReference akTarget | Quest akQuestToTarget])")
@@ -3413,7 +3526,7 @@ Event OnConsoleTeleport(String EventName, String sArgument, Float fArgument, For
   Form akForm  = self.FormFromSArgument(sArgument, 1)
 
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -3532,13 +3645,12 @@ Event OnConsolePause(String EventName, String sArgument, Float fArgument, Form S
   
   SoundCategory akSoundCategory = self.FormFromSArgument(sArgument, 1) as SoundCategory
   If akSoundCategory == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akSoundCategory.Pause()
   PrintMessage("Paused " + self.GetFullID(akSoundCategory))
 EndEvent
-
 
 Event OnConsoleUnpause(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3549,13 +3661,12 @@ Event OnConsoleUnpause(String EventName, String sArgument, Float fArgument, Form
   
   SoundCategory akSoundCategory = self.FormFromSArgument(sArgument, 1) as SoundCategory
   If akSoundCategory == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akSoundCategory.Unpause()
   PrintMessage("Unpaused " + self.GetFullID(akSoundCategory))
 EndEvent
-
 
 Event OnConsoleMute(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3566,13 +3677,12 @@ Event OnConsoleMute(String EventName, String sArgument, Float fArgument, Form Se
   
   SoundCategory akSoundCategory = self.FormFromSArgument(sArgument, 1) as SoundCategory
   If akSoundCategory == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akSoundCategory.Mute()
   PrintMessage("Muted " + self.GetFullID(akSoundCategory))
 EndEvent
-
 
 Event OnConsoleUnmute(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3583,13 +3693,12 @@ Event OnConsoleUnmute(String EventName, String sArgument, Float fArgument, Form 
   
   SoundCategory akSoundCategory = self.FormFromSArgument(sArgument, 1) as SoundCategory
   If akSoundCategory == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akSoundCategory.Unmute()
   PrintMessage("Unmuted " + self.GetFullID(akSoundCategory))
 EndEvent
-
 
 Event OnConsoleSetVolume(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3600,14 +3709,13 @@ Event OnConsoleSetVolume(String EventName, String sArgument, Float fArgument, Fo
   
   SoundCategory akSoundCategory = self.FormFromSArgument(sArgument, 1) as SoundCategory
   If akSoundCategory == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float afVolume = self.FloatFromSArgument(sArgument, 2)
   akSoundCategory.SetVolume(afVolume)
   PrintMessage("Set volume of " + self.GetFullID(akSoundCategory) + " as " + afVolume)
 EndEvent
-
 
 Event OnConsoleSaveEx(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3619,7 +3727,6 @@ Event OnConsoleSaveEx(String EventName, String sArgument, Float fArgument, Form 
   Game.RequestSave()
 EndEvent
 
-
 Event OnConsoleAutoSaveEx(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SaveEx")
@@ -3630,7 +3737,6 @@ Event OnConsoleAutoSaveEx(String EventName, String sArgument, Float fArgument, F
   Game.RequestAutoSave()
 EndEvent
 
-
 Event OnConsoleGetIDFromConsoleRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetEditorIDFromConsoleRef()")
@@ -3640,13 +3746,12 @@ Event OnConsoleGetIDFromConsoleRef(String EventName, String sArgument, Float fAr
   
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
-  PrintMessage("Selected reference is " + self.GetFullID(akRef) + ".")
-  PrintMessage("Selected reference's form is " + self.GetFullID(akRef.GetBaseObject()) + ".")
+  PrintMessage("Selected reference is " + self.GetFullID(akRef))
+  PrintMessage("Selected reference's form is " + self.GetFullID(akRef.GetBaseObject()))
 EndEvent
-
 
 Event OnConsoleDelete(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3662,7 +3767,7 @@ Event OnConsoleDelete(String EventName, String sArgument, Float fArgument, Form 
   EndIf
 
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -3674,7 +3779,6 @@ Event OnConsoleDelete(String EventName, String sArgument, Float fArgument, Form 
   DbSKSEFunctions.ExecuteConsoleCommand("setpos z 10000", ConsoleUtil.GetSelectedReference())
   PrintMessage("Disabled and deleted " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleAttachPapyrusScript(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3693,13 +3797,12 @@ Event OnConsoleAttachPapyrusScript(String EventName, String sArgument, Float fAr
   EndIf
 
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   DbMiscFunctions.AttachPapyrusScript(scriptn, akRef)
   PrintMessage("Added " + scriptn + " to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleGetFormDescription(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3710,7 +3813,7 @@ Event OnConsoleGetFormDescription(String EventName, String sArgument, Float fArg
   Form akForm = self.FormFromSArgument(sArgument, 1)
   string formDesc = DbSKSEFunctions.GetFormDescription(akForm)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   If formDesc == ""
@@ -3723,7 +3826,6 @@ Event OnConsoleGetFormDescription(String EventName, String sArgument, Float fArg
   PrintMessage("Description for " + self.GetFullID(akForm) + ":")
   PrintMessage(formDesc)
 EndEvent
-
 
 Event OnConsoleAddMagicEffectToSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3740,13 +3842,12 @@ Event OnConsoleAddMagicEffectToSpell(String EventName, String sArgument, Float f
   float afCost = self.FloatFromSArgument(sArgument, 6)
   String[] asConditionList = self.StringArrayFromSArgument(sArgument, 7)
   If akSpell == none || akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.AddMagicEffectToSpell(akSpell, akMagicEffect, afMagnitude, aiArea, aiDuration, afCost, asConditionList)
   PrintMessage("Added " + self.GetFullID(akMagicEffect) + " to " + self.GetFullID(akSpell))
 EndEvent
-
 
 Event OnConsoleGetFormTypeAll(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3757,12 +3858,11 @@ Event OnConsoleGetFormTypeAll(String EventName, String sArgument, Float fArgumen
   Form akForm = self.FormFromSArgument(sArgument, 1)
   string formTypeStr = DbMiscFunctions.GetFormTypeStringAll(akForm)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
-  PrintMessage("FormType for " + self.GetFullID(akForm) + " is " + formTypeStr + ".")
+  PrintMessage("FormType for " + self.GetFullID(akForm) + " is " + formTypeStr)
 EndEvent
-
 
 Event OnConsoleCreateXMarkerRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3777,12 +3877,11 @@ Event OnConsoleCreateXMarkerRef(String EventName, String sArgument, Float fArgum
   EndIf
   ObjectReference result = DbMiscFunctions.CreateXMarkerRef(PersistentRef, PlaceAtMeRef)
   If result == none
-    PrintMessage("Failed to place marker.")
+    PrintMessage("Failed to place marker")
     Return
   EndIf
   PrintMessage("Created XMarker at " + self.GetFullID(PlaceAtMeRef) + ": " + self.GetFullID(result))
 EndEvent
-
 
 Event OnConsoleGetEnchantArt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3792,12 +3891,11 @@ Event OnConsoleGetEnchantArt(String EventName, String sArgument, Float fArgument
   EndIf
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage(self.GetFullID(akMagicEffect.GetEnchantArt()))
 EndEvent
-
 
 Event OnConsoleGetCastingArt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3807,12 +3905,11 @@ Event OnConsoleGetCastingArt(String EventName, String sArgument, Float fArgument
   EndIf
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage(GetFullID(akMagicEffect.GetCastingArt()))
 EndEvent
-
 
 Event OnConsoleGetHitEffectArt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3822,12 +3919,11 @@ Event OnConsoleGetHitEffectArt(String EventName, String sArgument, Float fArgume
   EndIf
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage(GetFullID(akMagicEffect.GetHitEffectArt()))
 EndEvent
-
 
 Event OnConsoleGetEnchantShader(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3837,12 +3933,11 @@ Event OnConsoleGetEnchantShader(String EventName, String sArgument, Float fArgum
   EndIf
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage(GetFullID(akMagicEffect.GetEnchantShader()))
 EndEvent
-
 
 Event OnConsoleGetHitShader(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3852,12 +3947,11 @@ Event OnConsoleGetHitShader(String EventName, String sArgument, Float fArgument,
   EndIf
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage(GetFullID(akMagicEffect.GetHitShader()))
 EndEvent
-
 
 Event OnConsoleSetEnchantArt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3868,13 +3962,12 @@ Event OnConsoleSetEnchantArt(String EventName, String sArgument, Float fArgument
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   Art akArt = self.FormFromSArgument(sArgument, 2) as Art
   If akMagicEffect == none || akArt == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akMagicEffect.SetEnchantArt(akArt)
   PrintMessage("Set " + self.GetFullID(akMagicEffect) + " to " + self.GetFullID(akArt))
 EndEvent
-
 
 Event OnConsoleSetCastingArt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3885,13 +3978,12 @@ Event OnConsoleSetCastingArt(String EventName, String sArgument, Float fArgument
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   Art akArt = self.FormFromSArgument(sArgument, 2) as Art
   If akMagicEffect == none || akArt == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akMagicEffect.SetCastingArt(akArt)
   PrintMessage("Set " + self.GetFullID(akMagicEffect) + " to " + self.GetFullID(akArt))
 EndEvent
-
 
 Event OnConsoleSetHitEffectArt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3902,13 +3994,12 @@ Event OnConsoleSetHitEffectArt(String EventName, String sArgument, Float fArgume
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   Art akArt = self.FormFromSArgument(sArgument, 2) as Art
   If akMagicEffect == none || akArt == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akMagicEffect.SetHitEffectArt(akArt)
   PrintMessage("Set " + self.GetFullID(akMagicEffect) + " to " + self.GetFullID(akArt))
 EndEvent
-
 
 Event OnConsoleSetEnchantShader(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3919,13 +4010,12 @@ Event OnConsoleSetEnchantShader(String EventName, String sArgument, Float fArgum
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 2) as EffectShader
   If akMagicEffect == none || akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akMagicEffect.SetEnchantShader(akEffectShader)
   PrintMessage("Set " + self.GetFullID(akMagicEffect) + " to " + self.GetFullID(akEffectShader))
 EndEvent
-
 
 Event OnConsoleSetHitShader(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3936,13 +4026,12 @@ Event OnConsoleSetHitShader(String EventName, String sArgument, Float fArgument,
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 2) as EffectShader
   If akMagicEffect == none || akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akMagicEffect.SetHitShader(akEffectShader)
   PrintMessage("Set " + self.GetFullID(akMagicEffect) + " to " + self.GetFullID(akEffectShader))
 EndEvent
-
 
 Event OnConsoleResetActor3D(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3967,14 +4056,13 @@ Event OnConsoleResetActor3D(String EventName, String sArgument, Float fArgument,
   EndIf
 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.ResetActor3D(akActor, asFolderName)
   PrintMessage("Reset " + self.GetFullID(akActor) + " to " + asFolderName)
 EndEvent
-
 
 Event OnConsoleGetPackageIdles(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -3984,7 +4072,7 @@ Event OnConsoleGetPackageIdles(String EventName, String sArgument, Float fArgume
   EndIf
   Package akPackage = self.FormFromSArgument(sArgument, 1) as Package
   If akPackage == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -4003,7 +4091,6 @@ Event OnConsoleGetPackageIdles(String EventName, String sArgument, Float fArgume
   EndWhile
 EndEvent
 
-
 Event OnConsoleAddPackageIdle(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: AddPackageIdle(Package akPackage, Idle akIdle)")
@@ -4013,13 +4100,12 @@ Event OnConsoleAddPackageIdle(String EventName, String sArgument, Float fArgumen
   Package akPackage = self.FormFromSArgument(sArgument, 1) as Package
   Idle akIdle = self.FormFromSArgument(sArgument, 2) as Idle
   If akPackage == none || akIdle == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.AddPackageIdle(akPackage, akIdle)
   PrintMessage("Added " + self.GetFullID(akPackage) + " to " + self.GetFullID(akIdle))
 EndEvent
-
 
 Event OnConsoleRemovePackageIdle(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4030,13 +4116,12 @@ Event OnConsoleRemovePackageIdle(String EventName, String sArgument, Float fArgu
   Package akPackage = self.FormFromSArgument(sArgument, 1) as Package
   Idle akIdle = self.FormFromSArgument(sArgument, 2) as Idle
   If akPackage == none || akIdle == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.RemovePackageIdle(akPackage, akIdle)
   PrintMessage("Removed " + self.GetFullID(akPackage) + " from " + self.GetFullID(akIdle))
 EndEvent
-
 
 Event OnConsoleGetFormIDFromEditorID(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4046,12 +4131,11 @@ Event OnConsoleGetFormIDFromEditorID(String EventName, String sArgument, Float f
   EndIf
   Form akForm = self.FormFromSArgument(sArgument, 1)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
-  PrintMessage("FormID: " + self.GetFullID(akForm) + ".")
+  PrintMessage("FormID: " + self.GetFullID(akForm))
 EndEvent
-
 
 Event OnConsoleGetEDIDFromFormID(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4061,12 +4145,11 @@ Event OnConsoleGetEDIDFromFormID(String EventName, String sArgument, Float fArgu
   EndIf
   Form akForm = self.FormFromSArgument(sArgument, 1)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
-  PrintMessage("EditorID: " + PO3_SKSEFunctions.GetFormEditorID(akForm) + ".")
+  PrintMessage("EditorID: " + PO3_SKSEFunctions.GetFormEditorID(akForm))
 EndEvent
-
 
 Event OnConsoleGetFormModName(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4077,12 +4160,11 @@ Event OnConsoleGetFormModName(String EventName, String sArgument, Float fArgumen
   Form akForm = self.FormFromSArgument(sArgument, 1)
   bool abLastModified = self.BoolFromSArgument(sArgument, 2, false)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
-  PrintMessage("Modname: " + PO3_SKSEFunctions.GetFormModName(akForm, abLastModified) + ".")
+  PrintMessage("Modname: " + PO3_SKSEFunctions.GetFormModName(akForm, abLastModified))
 EndEvent
-
 
 Event OnConsoleGetScriptsAttachedToActiveEffect(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4101,7 +4183,7 @@ Event OnConsoleGetScriptsAttachedToActiveEffect(String EventName, String sArgume
   If L > 0
     PrintMessage(L + " scripts attached to " + self.GetFullID(akActiveEffect.GetBaseObject()) + ":")
   Else
-    PrintMessage("No scripts attached to " + self.GetFullID(akActiveEffect.GetBaseObject()) + ".")
+    PrintMessage("No scripts attached to " + self.GetFullID(akActiveEffect.GetBaseObject()))
     Return
   EndIf
 
@@ -4110,7 +4192,6 @@ Event OnConsoleGetScriptsAttachedToActiveEffect(String EventName, String sArgume
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleDismissAllSummons(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4125,9 +4206,9 @@ Event OnConsoleDismissAllSummons(String EventName, String sArgument, Float fArgu
   int i = 0
   int L = summons.Length
   If L > 0
-    PrintMessage("Dismissing " + L + " summons.")
+    PrintMessage("Dismissing " + L + " summons")
   Else
-    PrintMessage("No summons to dismiss.")
+    PrintMessage("No summons to dismiss")
     Return
   EndIf
   While i < L
@@ -4137,9 +4218,8 @@ Event OnConsoleDismissAllSummons(String EventName, String sArgument, Float fArgu
     EndIf
     i += 1
   EndWhile
-  PrintMessage("Dismissed " + L + " summons.")
+  PrintMessage("Dismissed " + L + " summons")
 EndEvent
-
 
 Event OnConsoleAddMagicEffectToEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4155,13 +4235,12 @@ Event OnConsoleAddMagicEffectToEnchantment(String EventName, String sArgument, F
   float afCost = self.FloatFromSArgument(sArgument, 6, 0.0)
   String[] asConditionList = self.StringArrayFromSArgument(sArgument, 7)
   If akEnchantment == none || akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.AddMagicEffectToEnchantment(akEnchantment, akMagicEffect, afMagnitude, aiArea, aiDuration, afCost, asConditionList)
   PrintMessage("Added " + self.GetFullID(akMagicEffect) + " to " + self.GetFullID(akEnchantment))
 EndEvent
-
 
 Event OnConsoleRemoveMagicEffectFromEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4176,13 +4255,12 @@ Event OnConsoleRemoveMagicEffectFromEnchantment(String EventName, String sArgume
   int aiDuration = self.IntFromSArgument(sArgument, 5)
   float afCost = self.FloatFromSArgument(sArgument, 6)
   If akEnchantment == none || akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.RemoveMagicEffectFromEnchantment(akEnchantment, akMagicEffect, afMagnitude, aiArea, aiDuration, afCost)
   PrintMessage("Removed " + self.GetFullID(akMagicEffect) + " from " + self.GetFullID(akEnchantment))
 EndEvent
-
 
 Event OnConsoleGetConditionList(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4198,7 +4276,7 @@ Event OnConsoleGetConditionList(String EventName, String sArgument, Float fArgum
   If L > 0
     PrintMessage(L + " conditions for " + self.GetFullID(akForm) + ":")
   Else
-    PrintMessage("No conditions found for " + self.GetFullID(akForm) + ".")
+    PrintMessage("No conditions found for " + self.GetFullID(akForm))
     Return
   EndIf
   While i < L
@@ -4206,7 +4284,6 @@ Event OnConsoleGetConditionList(String EventName, String sArgument, Float fArgum
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleSetConditionList(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4222,7 +4299,7 @@ Event OnConsoleSetConditionList(String EventName, String sArgument, Float fArgum
   If L > 0
     PrintMessage(L + " conditions for " + self.GetFullID(akForm) + ":")
   Else
-    PrintMessage("No conditions found for " + self.GetFullID(akForm) + ".")
+    PrintMessage("No conditions found for " + self.GetFullID(akForm))
     Return
   EndIf
   While i < L
@@ -4232,12 +4309,10 @@ Event OnConsoleSetConditionList(String EventName, String sArgument, Float fArgum
   PO3_SKSEFunctions.SetConditionList(akForm, aiIndex, asConditionList)
 EndEvent
 
-
 Event OnConsoleSleep(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PO3_SKSEFunctions.ToggleOpenSleepWaitMenu(true)
 EndEvent
-
 
 Event OnConsoleLaunchSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4256,13 +4331,12 @@ Event OnConsoleLaunchSpell(String EventName, String sArgument, Float fArgument, 
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   int aiSource = self.IntFromSArgument(sArgument, 2)
   If akActor == none || akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.LaunchSpell(akActor, akSpell, aiSource)
   PrintMessage(self.GetFullID(akActor) + " launched " + self.GetFullID(akSpell))
 EndEvent
-
 
 Event OnConsoleGetMenuContainer(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4272,12 +4346,11 @@ Event OnConsoleGetMenuContainer(String EventName, String sArgument, Float fArgum
   EndIf
   ObjectReference akRef = PO3_SKSEFunctions.GetMenuContainer()
   If akRef == none
-    PrintMessage("No container found.")
+    PrintMessage("No container found")
     Return
   EndIf
   PrintMessage("Container is: " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsolerGetItemHealthPercent(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4292,37 +4365,35 @@ Event OnConsolerGetItemHealthPercent(String EventName, String sArgument, Float f
     akRef = self.RefFromSArgument(sArgument, 1)
   EndIf
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float health = akRef.GetItemHealthPercent()
-  PrintMessage("Health of " + self.GetFullID(akRef) + " is " + health + ".")
+  PrintMessage("Health of " + self.GetFullID(akRef) + " is " + health)
 EndEvent
-
 
 Event OnConsolerSetItemHealthPercent(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SetItemHealthPercent [<ObjectReference akRef = GetSelectedReference()>] <float health = 10.0>)")
+  PrintMessage("Format: SetItemHealthPercent ([ObjectReference akRef = GetSelectedReference()], float afHealth = 10.0)")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   ObjectReference akRef
-  float health
+  float afHealth
   If QtyPars == 1
     akRef = ConsoleUtil.GetSelectedReference()
-    health = self.FloatFromSArgument(sArgument, 1, 10.0)
+    afHealth = self.FloatFromSArgument(sArgument, 1, 10.0)
   ElseIf QtyPars == 2
     akRef = self.RefFromSArgument(sArgument, 1)
-    health = self.FloatFromSArgument(sArgument, 2, 10.0)
+    afHealth = self.FloatFromSArgument(sArgument, 2, 10.0)
   EndIf
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
-  akRef.SetItemHealthPercent(health)
-  PrintMessage("Set health of " + self.GetFullID(akRef) + " to " + health + ".")
+  akRef.SetItemHealthPercent(afHealth)
+  PrintMessage("Set health of " + self.GetFullID(akRef) + " to " + afHealth)
 EndEvent
-
 
 Event OnConsoleSetReferenceDisplayName(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4336,7 +4407,7 @@ Event OnConsoleSetReferenceDisplayName(String EventName, String sArgument, Float
   newName = DbMiscFunctions.RemovePrefixFromString(sArgument, StringFromSArgument(sArgument, 0) + " ")
   
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akRef.SetDisplayName(newName)
@@ -4348,7 +4419,6 @@ Event OnConsoleSetReferenceDisplayName(String EventName, String sArgument, Float
     PrintMessage("Failed to change display name of " + self.GetFullID(akRef))
   endif
 EndEvent
-
 
 Event OnConsoleSetFormName(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4362,7 +4432,7 @@ Event OnConsoleSetFormName(String EventName, String sArgument, Float fArgument, 
   newName = DbMiscFunctions.RemovePrefixFromString(sArgument, self.StringFromSArgument(sArgument, 0))
   
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akForm.SetName(newName)
@@ -4374,7 +4444,6 @@ Event OnConsoleSetFormName(String EventName, String sArgument, Float fArgument, 
     PrintMessage("Failed to change form name of " + self.GetFullID(akForm))
   endif
 EndEvent
-
 
 Event OnConsoleEnchantObject(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4394,7 +4463,7 @@ Event OnConsoleEnchantObject(String EventName, String sArgument, Float fArgument
   int[] areas = Utility.CreateIntArray(enchants)
   int[] durations = Utility.CreateIntArray(enchants)
   If enchants > 0
-    PrintMessage("Enchanting " + enchants + " effects.")
+    PrintMessage("Enchanting " + enchants + " effects")
   EndIf
   While i < enchants
     effects[i] = self.FormFromSArgument(sArgument, 2 + i * 4) as MagicEffect
@@ -4404,13 +4473,12 @@ Event OnConsoleEnchantObject(String EventName, String sArgument, Float fArgument
     i += 1
   EndWhile
   If akRef == none || effects == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akRef.CreateEnchantment(maxCharge, effects, magnitudes, areas, durations)
-  PrintMessage("Enchanted " + self.GetFullID(akRef) + " with " + enchants + " effects.")
+  PrintMessage("Enchanted " + self.GetFullID(akRef) + " with " + enchants + " effects")
 EndEvent
-
 
 Event OnConsoleClearDestruction(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4420,13 +4488,12 @@ Event OnConsoleClearDestruction(String EventName, String sArgument, Float fArgum
   EndIf
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akRef.ClearDestruction()
   PrintMessage("Cleared destruction data for " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleCCPlaceAroundReference(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4441,13 +4508,12 @@ Event OnConsoleCCPlaceAroundReference(String EventName, String sArgument, Float 
   Float angle = self.FloatFromSArgument(sArgument, 3)
   Float heightOffset = self.FloatFromSArgument(sArgument, 4)
   If akRef == none || akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ccqdrsse002_globalfunctions.PlaceAroundReference(akRef, akForm, buildMarker, distance, angle, heightOffset)
   PrintMessage("Placed " + self.GetFullID(akForm) + " around " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleCharGenSaveCharacter(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4458,13 +4524,12 @@ Event OnConsoleCharGenSaveCharacter(String EventName, String sArgument, Float fA
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   string newName = self.StringFromSArgument(sArgument, 1)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   CharGen.SaveCharacterPreset(akActor, newName)
   PrintMessage("Saved " + self.GetFullID(akActor) + " as " + newName)
 EndEvent
-
 
 Event OnConsoleCharGenLoadCharacter(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4476,12 +4541,11 @@ Event OnConsoleCharGenLoadCharacter(String EventName, String sArgument, Float fA
   Race akRace = self.FormFromSArgument(sArgument, 1) as Race
   string newName = self.StringFromSArgument(sArgument, 2)
   If akDestination == none || akRace == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
   EndIf
   CharGen.LoadCharacter(akDestination, akRace, newName)
   PrintMessage("Loaded " + newName + " onto " + self.GetFullID(akDestination))
 EndEvent
-
 
 Event OnConsoleRecordSignatureHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4631,12 +4695,11 @@ Event OnConsoleRecordSignatureHelp(String EventName, String sArgument, Float fAr
   EndWhile
 
   If !found
-    PrintMessage("No record signatures found.")
+    PrintMessage("No record signatures found")
     Return
   EndIf
   PrintMessage("===============================")
 EndEvent
-
 
 Event OnConsoleSpellGetEquipType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4647,12 +4710,11 @@ Event OnConsoleSpellGetEquipType(String EventName, String sArgument, Float fArgu
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   EquipSlot akEquipSlot = akSpell.GetEquipType()
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Equip slot for " + self.GetFullID(akSpell) + " is " + self.GetFullID(akEquipSlot))
 EndEvent
-
 
 Event OnConsoleSpellSetEquipType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4663,13 +4725,12 @@ Event OnConsoleSpellSetEquipType(String EventName, String sArgument, Float fArgu
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   EquipSlot akEquipSlot = self.FormFromSArgument(sArgument, 2) as EquipSlot
   If akSpell == none || akEquipSlot == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akSpell.SetEquipType(akEquipSlot)
   PrintMessage("Equip slot for " + self.GetFullID(akSpell) + " set to " + self.GetFullID(akEquipSlot))
 EndEvent
-
 
 Event OnConsoleGetPlayerDialogueTarget(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4679,12 +4740,11 @@ Event OnConsoleGetPlayerDialogueTarget(String EventName, String sArgument, Float
   EndIf
   ObjectReference akRef = Game.GetDialogueTarget()
   If akRef == none
-    PrintMessage("No dialogue target found.")
+    PrintMessage("No dialogue target found")
     Return
   EndIf
   PrintMessage("Player is currently in dialogue with " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleForceFirstPerson(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4693,9 +4753,8 @@ Event OnConsoleForceFirstPerson(String EventName, String sArgument, Float fArgum
     Return
   EndIf
   Game.ForceFirstPerson()
-  PrintMessage("Forced first person.")
+  PrintMessage("Forced first person")
 EndEvent
-
 
 Event OnConsoleForceThirdPerson(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4704,9 +4763,8 @@ Event OnConsoleForceThirdPerson(String EventName, String sArgument, Float fArgum
     Return
   EndIf
   Game.ForceThirdPerson()
-  PrintMessage("Forced third person.")
+  PrintMessage("Forced third person")
 EndEvent
-
 
 Event OnConsoleSetPlayerAIDriven(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4716,9 +4774,8 @@ Event OnConsoleSetPlayerAIDriven(String EventName, String sArgument, Float fArgu
     Return
   EndIf
   Game.SetPlayerAIDriven(bAIDriven)
-  PrintMessage("Set PlayerAIDriven to " + bAIDriven + ".")
+  PrintMessage("Set PlayerAIDriven to " + bAIDriven)
 EndEvent
-
 
 Event OnConsoleShowLimitedRaceMenu(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4727,9 +4784,8 @@ Event OnConsoleShowLimitedRaceMenu(String EventName, String sArgument, Float fAr
     Return
   EndIf
   Game.ShowLimitedRaceMenu()
-  PrintMessage("ShowLimitedRaceMenu.")
+  PrintMessage("ShowLimitedRaceMenu")
 EndEvent
-
 
 Event OnConsoleSetPlayersLastRiddenHorse(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4741,7 +4797,6 @@ Event OnConsoleSetPlayersLastRiddenHorse(String EventName, String sArgument, Flo
   Game.SetPlayersLastRiddenHorse(akHorse)
   PrintMessage("Last ridden horse set to " + self.GetFullID(akHorse))
 EndEvent
-
 
 Event OnConsoleTriggerScreenBlood(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4770,7 +4825,6 @@ Event OnConsoleInputTapKey(String EventName, String sArgument, Float fArgument, 
   PrintMessage("TapKey " + dxKeycode)
 EndEvent
 
-
 Event OnConsoleInputHoldKey(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: HoldKey(int dxKeycode)")
@@ -4781,7 +4835,6 @@ Event OnConsoleInputHoldKey(String EventName, String sArgument, Float fArgument,
   Input.HoldKey(dxKeycode)
   PrintMessage("HoldKey " + dxKeycode)
 EndEvent
-
 
 Event OnConsoleInputReleaseKey(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4819,13 +4872,12 @@ Event OnConsoleLocationGetKeywordData(String EventName, String sArgument, Float 
   EndIf
 
   If akLocation == none || akKeyword == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akLocation.GetKeywordData(akKeyword)
   PrintMessage("Location keyword data for " + self.GetFullID(akLocation) + " " + self.GetFullID(akKeyword) + " is " + akLocation.GetKeywordData(akKeyword))
 EndEvent
-
 
 Event OnConsoleLocationSetKeywordData(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4837,13 +4889,12 @@ Event OnConsoleLocationSetKeywordData(String EventName, String sArgument, Float 
   Keyword akKeyword = self.FormFromSArgument(sArgument, 2) as Keyword
   float afData = self.FloatFromSArgument(sArgument, 3)
   If akLocation == none || akKeyword == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akLocation.SetKeywordData(akKeyword, afData)
   PrintMessage("Location keyword data for " + self.GetFullID(akLocation) + " " + self.GetFullID(akKeyword) + " set to " + afData)
 EndEvent
-
 
 Event OnConsoleSetItemMaxCharge(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4854,13 +4905,12 @@ Event OnConsoleSetItemMaxCharge(String EventName, String sArgument, Float fArgum
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   float maxCharge = self.FloatFromSArgument(sArgument, 1)
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akRef.SetItemCharge(maxCharge)
   PrintMessage("Item max charge of " + self.GetFullID(akRef) + " set to " + maxCharge)
 EndEvent
-
 
 Event OnConsoleGetItemMaxCharge(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4870,13 +4920,12 @@ Event OnConsoleGetItemMaxCharge(String EventName, String sArgument, Float fArgum
   EndIf
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float maxCharge = akRef.GetItemMaxCharge()
   PrintMessage("Item max charge of " + self.GetFullID(akRef) + " is " + maxCharge)
 EndEvent
-
 
 Event OnConsoleGetItemCharge(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4886,13 +4935,12 @@ Event OnConsoleGetItemCharge(String EventName, String sArgument, Float fArgument
   EndIf
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float charge = akRef.GetItemCharge()
   PrintMessage("Item charge of " + self.GetFullID(akRef) + " is " + charge)
 EndEvent
-
 
 Event OnConsoleSetItemCharge(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4903,7 +4951,7 @@ Event OnConsoleSetItemCharge(String EventName, String sArgument, Float fArgument
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   float charge = self.FloatFromSArgument(sArgument, 1)
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akRef.SetItemCharge(charge)
@@ -4922,13 +4970,12 @@ Event OnConsoleArtGetModelPath(String EventName, String sArgument, Float fArgume
   EndIf
   Art akArtObject = self.FormFromSArgument(sArgument, 1) as Art
   If akArtObject == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string Result = akArtObject.GetModelPath()
   PrintMessage("SetArtModelPath " + self.GetFullID(akArtObject) + " is " + Result)
 EndEvent
-
 
 Event OnConsoleArtSetModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4939,7 +4986,7 @@ Event OnConsoleArtSetModelPath(String EventName, String sArgument, Float fArgume
   Art akArtObject = self.FormFromSArgument(sArgument, 1) as Art
   string asPath = self.StringFromSArgument(sArgument, 2)
   If akArtObject == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArtObject.SetModelPath(asPath)
@@ -4964,13 +5011,12 @@ Event OnConsoleSetFogColor(String EventName, String sArgument, Float fArgument, 
   int aiFarGreen = self.IntFromSArgument(sArgument, 6)
   int aiFarBlue = self.IntFromSArgument(sArgument, 7)
   If akCell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akCell.SetFogColor(aiNearRed, aiNearGreen, aiNearBlue, aiFarRed, aiFarGreen, aiFarBlue)
   PrintMessage("SetFogColor " + self.GetFullID(akCell) + " to " + aiNearRed + " " + aiNearGreen + " " + aiNearBlue + " " + aiFarRed + " " + aiFarGreen + " " + aiFarBlue)
 EndEvent
-
 
 Event OnConsoleSetFogPlanes(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4982,13 +5028,12 @@ Event OnConsoleSetFogPlanes(String EventName, String sArgument, Float fArgument,
   float afNear = self.FloatFromSArgument(sArgument, 2)
   float afFar = self.FloatFromSArgument(sArgument, 3)
   If akCell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akCell.SetFogPlanes(afNear, afFar)
   PrintMessage("SetFogPlanes " + self.GetFullID(akCell) + " to " + afNear + " " + afFar)
 EndEvent
-
 
 Event OnConsoleSetFogPower(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -4999,13 +5044,12 @@ Event OnConsoleSetFogPower(String EventName, String sArgument, Float fArgument, 
   Cell akCell = self.FormFromSArgument(sArgument, 1) as Cell
   float afPower = self.FloatFromSArgument(sArgument, 2)
   If akCell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akCell.SetFogPower(afPower)
   PrintMessage("SetFogPower " + self.GetFullID(akCell) + " to " + afPower)
 EndEvent
-
 
 Event OnConsoleSetPublic(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5016,13 +5060,12 @@ Event OnConsoleSetPublic(String EventName, String sArgument, Float fArgument, Fo
   Cell akCell = self.FormFromSArgument(sArgument, 1) as Cell
   bool abPublic = self.BoolFromSArgument(sArgument, 2, false)
   If akCell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akCell.SetPublic(abPublic)
   PrintMessage("SetPublic " + self.GetFullID(akCell) + " to " + abPublic)
 EndEvent
-
 
 Event OnConsoleGetActorOwner(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5032,13 +5075,12 @@ Event OnConsoleGetActorOwner(String EventName, String sArgument, Float fArgument
   EndIf
   Cell akCell = self.FormFromSArgument(sArgument, 1) as Cell
   If akCell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ActorBase akActor = akCell.GetActorOwner()
   PrintMessage("Actor owner of " + self.GetFullID(akCell) + " is " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleGetFactionOwner(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5048,13 +5090,12 @@ Event OnConsoleGetFactionOwner(String EventName, String sArgument, Float fArgume
   EndIf
   Cell akCell = self.FormFromSArgument(sArgument, 1) as Cell
   If akCell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Faction akFaction = akCell.GetFactionOwner()
   PrintMessage("Faction owner of " + self.GetFullID(akCell) + " is " + self.GetFullID(akFaction))
 EndEvent
-
 
 Event OnConsoleGetWaterLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5064,13 +5105,12 @@ Event OnConsoleGetWaterLevel(String EventName, String sArgument, Float fArgument
   EndIf
   Cell akCell = self.FormFromSArgument(sArgument, 1) as Cell
   If akCell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float waterLevel = akCell.GetWaterLevel()
-  PrintMessage("Water level of " + self.GetFullID(akCell) + " is " + waterLevel + ".")
+  PrintMessage("Water level of " + self.GetFullID(akCell) + " is " + waterLevel)
 EndEvent
-
 
 Event OnConsoleGetActualWaterLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5080,11 +5120,11 @@ Event OnConsoleGetActualWaterLevel(String EventName, String sArgument, Float fAr
   EndIf
   Cell akCell = self.FormFromSArgument(sArgument, 1) as Cell
   If akCell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float waterLevel = akCell.GetActualWaterLevel()
-  PrintMessage("Actual water level of " + self.GetFullID(akCell) + " is " + waterLevel + ".")
+  PrintMessage("Actual water level of " + self.GetFullID(akCell) + " is " + waterLevel)
 EndEvent
 
 
@@ -5134,7 +5174,6 @@ Event OnConsoleSlotHelp(String EventName, String sArgument, Float fArgument, For
   PrintMessage("===========================")
 EndEvent
 
-
 Event OnConsoleGetSlotMask(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetSlotMask(Armor akArmor)")
@@ -5143,13 +5182,12 @@ Event OnConsoleGetSlotMask(String EventName, String sArgument, Float fArgument, 
   EndIf
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int slotMask = akArmor.GetSlotMask()
   PrintMessage("Slot mask of " + self.GetFullID(akArmor) + " is " + slotMask)
 EndEvent
-
 
 Event OnConsoleSetSlotMask(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5160,13 +5198,12 @@ Event OnConsoleSetSlotMask(String EventName, String sArgument, Float fArgument, 
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   int slotMask = self.IntFromSArgument(sArgument, 2)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmor.SetSlotMask(slotMask)
   PrintMessage("Slot mask of " + self.GetFullID(akArmor) + " set to " + slotMask)
 EndEvent
-
 
 Event OnConsoleAddSlotToMask(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5177,7 +5214,7 @@ Event OnConsoleAddSlotToMask(String EventName, String sArgument, Float fArgument
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   int slotMask = self.IntFromSArgument(sArgument, 2)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmor.AddSlotToMask(slotMask)
@@ -5194,13 +5231,12 @@ Event OnConsoleRemoveSlotFromMask(String EventName, String sArgument, Float fArg
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   int slotMask = self.IntFromSArgument(sArgument, 2)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmor.RemoveSlotFromMask(slotMask)
   PrintMessage("Slot mask of " + self.GetFullID(akArmor) + " removed " + slotMask)
 EndEvent
-
 
 Event OnConsoleGetMaskForSlot(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5213,7 +5249,6 @@ Event OnConsoleGetMaskForSlot(String EventName, String sArgument, Float fArgumen
   PrintMessage("Mask for slot " + slot + " is " + mask)
 EndEvent
 
-
 Event OnConsoleGetArmorModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetArmorModelPath(Armor akArmor, bool bFemalePath)")
@@ -5223,13 +5258,12 @@ Event OnConsoleGetArmorModelPath(String EventName, String sArgument, Float fArgu
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   bool bFemalePath = self.BoolFromSArgument(sArgument, 2)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string Result = akArmor.GetModelPath(bFemalePath)
   PrintMessage("Model path of " + self.GetFullID(akArmor) + " is " + Result)
 EndEvent
-
 
 Event OnConsoleSetArmorModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5241,13 +5275,12 @@ Event OnConsoleSetArmorModelPath(String EventName, String sArgument, Float fArgu
   string path = DbMiscFunctions.RemovePrefixFromString(sArgument, StringFromSArgument(sArgument, 0) + " " + StringFromSArgument(sArgument, 1) + " ")
   bool bFemalePath = self.BoolFromSArgument(sArgument, 3)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmor.SetModelPath(path, bFemalePath)
   PrintMessage("Model path of " + self.GetFullID(akArmor) + " set to " + path)
 EndEvent
-
 
 Event OnConsoleGetArmorIconPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5258,13 +5291,12 @@ Event OnConsoleGetArmorIconPath(String EventName, String sArgument, Float fArgum
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   bool bFemalePath = self.BoolFromSArgument(sArgument, 2)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string Result = akArmor.GetIconPath(bFemalePath)
   PrintMessage("Icon path of " + self.GetFullID(akArmor) + " is " + Result)
 EndEvent
-
 
 Event OnConsoleSetArmorIconPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5276,13 +5308,12 @@ Event OnConsoleSetArmorIconPath(String EventName, String sArgument, Float fArgum
   string path = DbMiscFunctions.RemovePrefixFromString(sArgument, StringFromSArgument(sArgument, 0) + " " + StringFromSArgument(sArgument, 1) + " ")
   bool bFemalePath = self.BoolFromSArgument(sArgument, 3)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmor.SetIconPath(path, bFemalePath)
   PrintMessage("Icon path of " + self.GetFullID(akArmor) + " set to " + path)
 EndEvent
-
 
 Event OnConsoleGetArmorMessageIconPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5293,13 +5324,12 @@ Event OnConsoleGetArmorMessageIconPath(String EventName, String sArgument, Float
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   bool bFemalePath = self.BoolFromSArgument(sArgument, 2)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string Result = akArmor.GetMessageIconPath(bFemalePath)
   PrintMessage("Message icon path of " + self.GetFullID(akArmor) + " is " + Result)
 EndEvent
-
 
 Event OnConsoleSetArmorMessageIconPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5311,13 +5341,12 @@ Event OnConsoleSetArmorMessageIconPath(String EventName, String sArgument, Float
   string path = DbMiscFunctions.RemovePrefixFromString(sArgument, StringFromSArgument(sArgument, 0) + " " + StringFromSArgument(sArgument, 1) + " ")
   bool bFemalePath = self.BoolFromSArgument(sArgument, 3)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmor.SetMessageIconPath(path, bFemalePath)
   PrintMessage("Message icon path of " + self.GetFullID(akArmor) + " set to " + path)
 EndEvent
-
 
 Event OnConsoleGetArmorWeightClass(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5328,13 +5357,12 @@ Event OnConsoleGetArmorWeightClass(String EventName, String sArgument, Float fAr
   PrintMessage("0 = Light Armor; 1 = Heavy Armor; 2 = Clothing")
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int weightClass = akArmor.GetWeightClass()
   PrintMessage("Weight class of " + self.GetFullID(akArmor) + " is " + weightClass)
 EndEvent
-
 
 Event OnConsoleSetArmorWeightClass(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5345,13 +5373,13 @@ Event OnConsoleSetArmorWeightClass(String EventName, String sArgument, Float fAr
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   int weightClass = self.IntFromSArgument(sArgument, 2)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
-  PrintMessage("Attempting to change the weight class of " + self.GetFullID(akArmor) + " to " + weightClass + ".")
+  PrintMessage("Attempting to change the weight class of " + self.GetFullID(akArmor) + " to " + weightClass)
   akArmor.SetWeightClass(weightClass)
   int returnedWeightClass = akArmor.GetWeightClass()
-  PrintMessage("Weight class of " + self.GetFullID(akArmor) + " set to " + returnedWeightClass + ".")
+  PrintMessage("Weight class of " + self.GetFullID(akArmor) + " set to " + returnedWeightClass)
 EndEvent
 
 
@@ -5368,13 +5396,12 @@ Event OnConsoleSendVampirismStateChanged(String EventName, String sArgument, Flo
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   bool abIsVampire = self.BoolFromSArgument(sArgument, 1)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.SendVampirismStateChanged(abIsVampire)
   PrintMessage("Sent vampirism state changed for " + self.GetFullID(akActor) + " to " + abIsVampire)
 EndEvent
-
 
 Event OnConsoleSendLycanthropyStateChanged(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5385,13 +5412,12 @@ Event OnConsoleSendLycanthropyStateChanged(String EventName, String sArgument, F
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   bool abIsVampire = self.BoolFromSArgument(sArgument, 1)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.SendLycanthropyStateChanged(abIsVampire)
   PrintMessage("Sent lycanthropy state changed for " + self.GetFullID(akActor) + " to " + abIsVampire)
 EndEvent
-
 
 Event OnConsoleSetAttackActorOnSight(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5402,13 +5428,12 @@ Event OnConsoleSetAttackActorOnSight(String EventName, String sArgument, Float f
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   bool abAttackOnSight = self.BoolFromSArgument(sArgument, 1)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.SetAttackActorOnSight(abAttackOnSight)
   PrintMessage("Set attack actor on sight for " + self.GetFullID(akActor) + " to " + abAttackOnSight)
 EndEvent
-
 
 Event OnConsoleSetDontMove(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5419,7 +5444,7 @@ Event OnConsoleSetDontMove(String EventName, String sArgument, Float fArgument, 
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   bool abDontMove = self.BoolFromSArgument(sArgument, 1)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.SetDontMove(abDontMove)
@@ -5439,7 +5464,7 @@ Event OnConsoleShowGiftMenu(String EventName, String sArgument, Float fArgument,
   bool abGivingGift = self.BoolFromSArgument(sArgument, 1)
   bool abShowStolenItems = self.BoolFromSArgument(sArgument, 2, false)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ShowGiftMenu(abGivingGift, none, abShowStolenItems)
@@ -5457,13 +5482,12 @@ Event OnConsoleStartCannibal(String EventName, String sArgument, Float fArgument
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Actor akTarget = self.RefFromSArgument(sArgument, 1) as Actor
   If akActor == none || akTarget == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.StartCannibal(akTarget)
   PrintMessage(self.GetFullID(akActor) + " is cannibalizing " + self.GetFullID(akTarget))
 EndEvent
-
 
 Event OnConsoleStartSneaking(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5476,13 +5500,12 @@ Event OnConsoleStartSneaking(String EventName, String sArgument, Float fArgument
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.StartSneaking()
   PrintMessage(self.GetFullID(akActor) + " is sneaking")
 EndEvent
-
 
 Event OnConsoleGetActorbaseOutfit(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5493,7 +5516,7 @@ Event OnConsoleGetActorbaseOutfit(String EventName, String sArgument, Float fArg
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   bool abSleepOutfit = self.BoolFromSArgument(sArgument, 1, false)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -5505,7 +5528,6 @@ Event OnConsoleGetActorbaseOutfit(String EventName, String sArgument, Float fArg
   EndIf
 EndEvent
 
-
 Event OnConsoleSetActorOutfit(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetActorOutfit([Actor akActor = GetSelectedReference()], Outfit akOutfit, bool abSleepOutfit = false)")
@@ -5516,7 +5538,7 @@ Event OnConsoleSetActorOutfit(String EventName, String sArgument, Float fArgumen
   Outfit akOutfit = self.FormFromSArgument(sArgument, 1) as Outfit
   bool abSleepOutfit = self.BoolFromSArgument(sArgument, 2, false)
   If akActor == none || akOutfit == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.SetOutfit(akOutfit, abSleepOutfit)
@@ -5526,7 +5548,6 @@ Event OnConsoleSetActorOutfit(String EventName, String sArgument, Float fArgumen
     PrintMessage("Set outfit of " + self.GetFullID(akActor) + " to " + self.GetFullID(akOutfit))
   EndIf
 EndEvent
-
 
 Event OnConsoleUnsetActorOutfit(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5538,13 +5559,13 @@ Event OnConsoleUnsetActorOutfit(String EventName, String sArgument, Float fArgum
   If Game.IsPluginInstalled("V_EmptyOutfit.esp")
     EmptyOutfit = Game.GetFormFromFile(0x800,"V_EmptyOutfit.esp") as Outfit
   Else
-    PrintMessage("This function requires V_EmptyOutfit.esp to be installed.")
+    PrintMessage("This function requires V_EmptyOutfit.esp to be installed")
     Return
   EndIf
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   bool abSleepOutfit = self.BoolFromSArgument(sArgument, 2, false)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.SetOutfit(EmptyOutfit, abSleepOutfit)
@@ -5554,7 +5575,6 @@ Event OnConsoleUnsetActorOutfit(String EventName, String sArgument, Float fArgum
     PrintMessage("Unset outfit of " + self.GetFullID(akActor))
   EndIf
 EndEvent
-
 
 Event OnConsoleSetActorbaseOutfit(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5566,7 +5586,7 @@ Event OnConsoleSetActorbaseOutfit(String EventName, String sArgument, Float fArg
   Outfit akOutfit = self.FormFromSArgument(sArgument, 1) as Outfit
   bool abSleepOutfit = self.BoolFromSArgument(sArgument, 2, false)
   If akActorbase == none || akOutfit == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActorbase.SetOutfit(akOutfit, abSleepOutfit)
@@ -5576,7 +5596,6 @@ Event OnConsoleSetActorbaseOutfit(String EventName, String sArgument, Float fArg
     PrintMessage("Set outfit of " + self.GetFullID(akActorbase) + " to " + self.GetFullID(akOutfit))
   EndIf
 EndEvent
-
 
 Event OnConsoleUnsetActorbaseOutfit(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5588,13 +5607,13 @@ Event OnConsoleUnsetActorbaseOutfit(String EventName, String sArgument, Float fA
   If Game.IsPluginInstalled("V_EmptyOutfit.esp")
     EmptyOutfit = Game.GetFormFromFile(0x800,"V_EmptyOutfit.esp") as Outfit
   Else
-    PrintMessage("This function requires V_EmptyOutfit.esp to be installed.")
+    PrintMessage("This function requires V_EmptyOutfit.esp to be installed")
     Return
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   bool abSleepOutfit = self.BoolFromSArgument(sArgument, 2, false)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActorbase.SetOutfit(EmptyOutfit, abSleepOutfit)
@@ -5604,7 +5623,6 @@ Event OnConsoleUnsetActorbaseOutfit(String EventName, String sArgument, Float fA
     PrintMessage("Unset outfit of " + self.GetFullID(akActorbase))
   EndIf
 EndEvent
-
 
 Event OnConsoleVCSEquipItemEx(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5618,13 +5636,12 @@ Event OnConsoleVCSEquipItemEx(String EventName, String sArgument, Float fArgumen
   bool preventUnequip = self.BoolFromSArgument(sArgument, 3, false)
   bool equipSound = self.BoolFromSArgument(sArgument, 4, true)
   If akActor == none || akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.EquipItemEx(akForm, aiEquipSlot, preventUnequip, equipSound)
   PrintMessage("Equipped " + self.GetFullID(akForm) + " to " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleVCSUnequipItemEx(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5637,13 +5654,12 @@ Event OnConsoleVCSUnequipItemEx(String EventName, String sArgument, Float fArgum
   int aiEquipSlot = self.IntFromSArgument(sArgument, 2)
   bool preventEquip = self.BoolFromSArgument(sArgument, 3, false)
   If akActor == none || akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.UnequipItemEx(akForm, aiEquipSlot, preventEquip)
   PrintMessage("Unequipped " + self.GetFullID(akForm) + " from " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleVCSEquipShout(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5654,13 +5670,12 @@ Event OnConsoleVCSEquipShout(String EventName, String sArgument, Float fArgument
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Shout akShout = self.FormFromSArgument(sArgument, 1) as Shout
   If akActor == none || akShout == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.EquipShout(akShout)
   PrintMessage("VCSEquipShout " + self.GetFullID(akActor) + " " + self.GetFullID(akShout))
 EndEvent
-
 
 Event OnConsoleVCSEquipSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5672,13 +5687,12 @@ Event OnConsoleVCSEquipSpell(String EventName, String sArgument, Float fArgument
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   int aiSource = self.IntFromSArgument(sArgument, 2)
   If akActor == none || akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.EquipSpell(akSpell, aiSource)
   PrintMessage("VCSEquipSpell " + self.GetFullID(akActor) + " " + self.GetFullID(akSpell))
 EndEvent
-
 
 Event OnConsoleSetRestrained(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5689,13 +5703,12 @@ Event OnConsoleSetRestrained(String EventName, String sArgument, Float fArgument
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   bool abRestrained = self.BoolFromSArgument(sArgument, 1, true)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.SetRestrained(abRestrained)
   PrintMessage("SetRestrained " + self.GetFullID(akActor) + " to " + abRestrained)
 EndEvent
-
 
 Event OnConsoleRemoveAllArmorRefOverrides(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5708,13 +5721,12 @@ Event OnConsoleRemoveAllArmorRefOverrides(String EventName, String sArgument, Fl
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.RemoveAllReferenceOverrides(akActor)
   PrintMessage("Removed all armor overrides from " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleRemoveAllPerks(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5727,7 +5739,7 @@ Event OnConsoleRemoveAllPerks(String EventName, String sArgument, Float fArgumen
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int result = ProteusDLLUtils.RemoveAllPerks(akActor)
@@ -5737,7 +5749,6 @@ Event OnConsoleRemoveAllPerks(String EventName, String sArgument, Float fArgumen
   EndIf
   PrintMessage("All perks removed from " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleRemoveAllVisiblePerks(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5750,7 +5761,7 @@ Event OnConsoleRemoveAllVisiblePerks(String EventName, String sArgument, Float f
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int result = ProteusDLLUtils.RemoveAllVisiblePerks(akActor)
@@ -5760,7 +5771,6 @@ Event OnConsoleRemoveAllVisiblePerks(String EventName, String sArgument, Float f
   EndIf
   PrintMessage("All visible perks removed from " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleRemoveAllSpells(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5773,13 +5783,12 @@ Event OnConsoleRemoveAllSpells(String EventName, String sArgument, Float fArgume
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ProteusDLLUtils.RemoveAllSpells(akActor)
   PrintMessage("RemoveAllSpells " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleRGBToInt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5791,7 +5800,7 @@ Event OnConsoleRGBToInt(String EventName, String sArgument, Float fArgument, For
   int G = self.IntFromSArgument(sArgument, 2)
   int B = self.IntFromSArgument(sArgument, 3)
   ; If R == none || G == none || B == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   int result = DbColorFunctions.RGBToInt(R, G, B)
@@ -5816,12 +5825,11 @@ Event OnConsoleGetItemUniqueID(String EventName, String sArgument, Float fArgume
   bool makeUnique = self.BoolFromSArgument(sArgument, 3, true)
   int itemUID = NiOverride.GetItemUniqueID(akActor as ObjectReference, weaponSlot, slotMask, makeUnique)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Made item in weapon slot " + weaponSlot + " slot mask " + slotMask + " with id " + itemUID + " to owner " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleGetObjectUniqueID(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5832,13 +5840,12 @@ Event OnConsoleGetObjectUniqueID(String EventName, String sArgument, Float fArgu
   ObjectReference akObject = ConsoleUtil.GetSelectedReference()
   bool makeUnique = self.BoolFromSArgument(sArgument, 3, true)
   If akObject == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int ObjectUID = NiOverride.GetObjectUniqueID(akObject, makeUnique)
-  PrintMessage("Getting object " + self.GetFullID(akObject) + " with id " + ObjectUID + ".")
+  PrintMessage("Getting object " + self.GetFullID(akObject) + " with id " + ObjectUID)
 EndEvent
-
 
 Event OnConsoleGetItemDyeColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5850,7 +5857,7 @@ Event OnConsoleGetItemDyeColor(String EventName, String sArgument, Float fArgume
   int maskIndex = self.IntFromSArgument(sArgument, 2)
   int color = NiOverride.GetItemDyeColor(uniqueId, maskIndex)
   ; If uniqueId == none || maskIndex == none || color == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   PrintMessage("GetItemDyeColor " + uniqueId + " " + maskIndex + ": " + IntToHex(color))
@@ -5872,13 +5879,12 @@ Event OnConsoleSetItemDyeColor(String EventName, String sArgument, Float fArgume
   int B = self.IntFromSArgument(sArgument, 5)
   int color = DbColorFunctions.RGBToInt(R, G, B)
   ; If uniqueId == none || maskIndex == none || color == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.SetItemDyeColor(uniqueId, maskIndex, color)
   PrintMessage("SetItemDyeColor " + uniqueId + " " + maskIndex + " " + color)
 EndEvent
-
 
 Event OnConsoleClearItemDyeColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5889,13 +5895,12 @@ Event OnConsoleClearItemDyeColor(String EventName, String sArgument, Float fArgu
   int uniqueId = self.IntFromSArgument(sArgument, 1)
   int maskIndex = self.IntFromSArgument(sArgument, 2)
   ; If uniqueId == none || maskIndex == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.ClearItemDyeColor(uniqueId, maskIndex)
   PrintMessage("Cleared dye color of item " + uniqueID + " of mask index " + maskIndex)
 EndEvent
-
 
 Event OnConsoleUpdateItemDyeColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5906,7 +5911,7 @@ Event OnConsoleUpdateItemDyeColor(String EventName, String sArgument, Float fArg
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   int uniqueId = self.IntFromSArgument(sArgument, 1)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.UpdateItemDyeColor(akActor, uniqueId)
@@ -5928,13 +5933,12 @@ Event OnConsoleSetItemTextureLayerColor(String EventName, String sArgument, Floa
   int B = self.IntFromSArgument(sArgument, 6)
   int color = DbColorFunctions.RGBToInt(R, G, B)
   ; If uniqueId == none || textureIndex == none || layer == none || color == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.SetItemTextureLayerColor(uniqueId, textureIndex, layer, color)
   PrintMessage("SetItemTextureLayerColor " + uniqueId + " " + textureIndex + " " + layer + " " + color)
 EndEvent
-
 
 Event OnConsoleGetItemTextureLayerColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5946,13 +5950,12 @@ Event OnConsoleGetItemTextureLayerColor(String EventName, String sArgument, Floa
   int textureIndex = self.IntFromSArgument(sArgument, 2)
   int layer = self.IntFromSArgument(sArgument, 3)
   ; If uniqueId == none || textureIndex == none || layer == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   int color = NiOverride.GetItemTextureLayerColor(uniqueId, textureIndex, layer)
   PrintMessage("GetItemTextureLayerColor " + uniqueId + " " + textureIndex + " " + layer + " " + color)
 EndEvent
-
 
 Event OnConsoleClearItemTextureLayerColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5964,13 +5967,12 @@ Event OnConsoleClearItemTextureLayerColor(String EventName, String sArgument, Fl
   int textureIndex = self.IntFromSArgument(sArgument, 2)
   int layer = self.IntFromSArgument(sArgument, 3)
   ; If uniqueId == none || textureIndex == none || layer == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.ClearItemTextureLayerColor(uniqueId, textureIndex, layer)
   PrintMessage("ClearItemTextureLayerColor " + uniqueId + " " + textureIndex + " " + layer)
 EndEvent
-
 
 Event OnConsoleSetItemTextureLayerType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -5983,13 +5985,12 @@ Event OnConsoleSetItemTextureLayerType(String EventName, String sArgument, Float
   int layer = self.IntFromSArgument(sArgument, 3)
   int type = self.IntFromSArgument(sArgument, 4)
   ; If uniqueId == none || textureIndex == none || layer == none || type == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.SetItemTextureLayerType(uniqueId, textureIndex, layer, type)
   PrintMessage("SetItemTextureLayerType " + uniqueId + " " + textureIndex + " " + layer + " " + type)
 EndEvent
-
 
 Event OnConsoleGetItemTextureLayerType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6001,13 +6002,12 @@ Event OnConsoleGetItemTextureLayerType(String EventName, String sArgument, Float
   int textureIndex = self.IntFromSArgument(sArgument, 2)
   int layer = self.IntFromSArgument(sArgument, 3)
   ; If uniqueId == none || textureIndex == none || layer == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   int type = NiOverride.GetItemTextureLayerType(uniqueId, textureIndex, layer)
   PrintMessage("GetItemTextureLayerType " + uniqueId + " " + textureIndex + " " + layer + " " + type)
 EndEvent
-
 
 Event OnConsoleClearItemTextureLayerType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6019,13 +6019,12 @@ Event OnConsoleClearItemTextureLayerType(String EventName, String sArgument, Flo
   int textureIndex = self.IntFromSArgument(sArgument, 2)
   int layer = self.IntFromSArgument(sArgument, 3)
   ; If uniqueId == none || textureIndex == none || layer == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.ClearItemTextureLayerType(uniqueId, textureIndex, layer)
   PrintMessage("ClearItemTextureLayerType " + uniqueId + " " + textureIndex + " " + layer)
 EndEvent
-
 
 Event OnConsoleSetItemTextureLayerTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6038,13 +6037,12 @@ Event OnConsoleSetItemTextureLayerTexture(String EventName, String sArgument, Fl
   int layer = self.IntFromSArgument(sArgument, 3)
   string texture = self.StringFromSArgument(sArgument, 4)
   ; If uniqueId == none || textureIndex == none || layer == none || texture == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.SetItemTextureLayerTexture(uniqueId, textureIndex, layer, texture)
   PrintMessage("SetItemTextureLayerTexture " + uniqueId + " " + textureIndex + " " + layer + " " + texture)
 EndEvent
-
 
 Event OnConsoleGetItemTextureLayerTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6056,13 +6054,12 @@ Event OnConsoleGetItemTextureLayerTexture(String EventName, String sArgument, Fl
   int textureIndex = self.IntFromSArgument(sArgument, 2)
   int layer = self.IntFromSArgument(sArgument, 3)
   ; If uniqueId == none || textureIndex == none || layer == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   string texture = NiOverride.GetItemTextureLayerTexture(uniqueId, textureIndex, layer)
   PrintMessage("GetItemTextureLayerTexture " + uniqueId + " " + textureIndex + " " + layer + " " + texture)
 EndEvent
-
 
 Event OnConsoleClearItemTextureLayerTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6074,13 +6071,12 @@ Event OnConsoleClearItemTextureLayerTexture(String EventName, String sArgument, 
   int textureIndex = self.IntFromSArgument(sArgument, 2)
   int layer = self.IntFromSArgument(sArgument, 3)
   ; If uniqueId == none || textureIndex == none || layer == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.ClearItemTextureLayerTexture(uniqueId, textureIndex, layer)
   PrintMessage("ClearItemTextureLayerTexture " + uniqueId + " " + textureIndex + " " + layer)
 EndEvent
-
 
 Event OnConsoleSetItemTextureLayerBlendMode(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6093,13 +6089,12 @@ Event OnConsoleSetItemTextureLayerBlendMode(String EventName, String sArgument, 
   int layer = self.IntFromSArgument(sArgument, 3)
   string blendMode = self.StringFromSArgument(sArgument, 4)
   ; If uniqueId == none || textureIndex == none || layer == none || blendMode == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.SetItemTextureLayerBlendMode(uniqueId, textureIndex, layer, blendMode)
   PrintMessage("SetItemTextureLayerBlendMode " + uniqueId + " " + textureIndex + " " + layer + " " + blendMode)
 EndEvent
-
 
 Event OnConsoleGetItemTextureLayerBlendMode(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6111,13 +6106,12 @@ Event OnConsoleGetItemTextureLayerBlendMode(String EventName, String sArgument, 
   int textureIndex = self.IntFromSArgument(sArgument, 2)
   int layer = self.IntFromSArgument(sArgument, 3)
   ; If uniqueId == none || textureIndex == none || layer == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   string blendMode = NiOverride.GetItemTextureLayerBlendMode(uniqueId, textureIndex, layer)
   PrintMessage("GetItemTextureLayerBlendMode " + uniqueId + " " + textureIndex + " " + layer + " " + blendMode)
 EndEvent
-
 
 Event OnConsoleClearItemTextureLayerBlendMode(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6129,13 +6123,12 @@ Event OnConsoleClearItemTextureLayerBlendMode(String EventName, String sArgument
   int textureIndex = self.IntFromSArgument(sArgument, 2)
   int layer = self.IntFromSArgument(sArgument, 3)
   ; If uniqueId == none || textureIndex == none || layer == none
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   NiOverride.ClearItemTextureLayerBlendMode(uniqueId, textureIndex, layer)
   PrintMessage("ClearItemTextureLayerBlendMode " + uniqueId + " " + textureIndex + " " + layer)
 EndEvent
-
 
 Event OnConsoleUpdateItemTextureLayers(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6151,7 +6144,7 @@ Event OnConsoleUpdateItemTextureLayers(String EventName, String sArgument, Float
     uniqueId = self.IntFromSArgument(sArgument, 2)
   EndIf
   If akActor == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.UpdateItemTextureLayers(akActor, uniqueId)
@@ -6171,13 +6164,12 @@ Event OnConsoleRevertOverlays(String EventName, String sArgument, Float fArgumen
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.RevertOverlays(akActor)
   PrintMessage("RevertOverlays" + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleAddWeaponOverrideTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6218,13 +6210,12 @@ Event OnConsoleAddWeaponOverrideTextureSet(String EventName, String sArgument, F
     persist = self.BoolFromSArgument(sArgument, 9, true)
   EndIf
   If akActor == none || akTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.AddWeaponOverrideTextureSet(akActor, isFemale, firstPerson, akWeapon, node, keyid, index, akTXST, persist)
   PrintMessage("AddWeaponOverrideTextureSet " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleApplyWeaponOverrides(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6237,13 +6228,12 @@ Event OnConsoleApplyWeaponOverrides(String EventName, String sArgument, Float fA
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.ApplyWeaponOverrides(akActor)
   PrintMessage("ApplyWeaponOverrides " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleAddSkinOverrideTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6251,7 +6241,7 @@ Event OnConsoleAddSkinOverrideTextureSet(String EventName, String sArgument, Flo
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: AddSkinOverrideTextureSet([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index, TextureSet akTXST, bool persist)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     PrintMessage("")
     PrintMessage("Shader Property IDs and Types:")
     PrintMessage("======================================================================================")
@@ -6308,7 +6298,7 @@ Event OnConsoleAddSkinOverrideTextureSet(String EventName, String sArgument, Flo
 
   ; Check for critical errors
   If akActor == none || akTXST == none
-    PrintMessage("ERROR: Unable to retrieve required Actor or TextureSet. Ensure the selected reference is valid and the TextureSet is correctly specified.")
+    PrintMessage("ERROR: Unable to retrieve required Actor or TextureSet. Ensure the selected reference is valid and the TextureSet is correctly specified")
     Return
   EndIf
 
@@ -6330,12 +6320,11 @@ Event OnConsoleAddSkinOverrideTextureSet(String EventName, String sArgument, Flo
     PrintMessage("- TextureSet: " + self.GetFullID(akTXST))
     PrintMessage("- Persist: " + IfElse(persist, "Yes", "No"))
   Else
-    PrintMessage("WARNING: TextureSet override may not have been applied successfully.")
+    PrintMessage("WARNING: TextureSet override may not have been applied successfully")
     PrintMessage("Expected TextureSet: " + self.GetFullID(akTXST))
     PrintMessage("Applied TextureSet: " + IfElse(appliedTextureSet, self.GetFullID(appliedTextureSet), "None"))
   EndIf
 EndEvent
-
 
 Event OnConsoleApplySkinOverrides(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6348,13 +6337,12 @@ Event OnConsoleApplySkinOverrides(String EventName, String sArgument, Float fArg
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.ApplySkinOverrides(akActor)
   PrintMessage("ApplySkinOverrides " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleGetOverrideTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6387,13 +6375,12 @@ Event OnConsoleGetOverrideTextureSet(String EventName, String sArgument, Float f
     index = self.IntFromSArgument(sArgument, 7)
   EndIf
   If akActor == none || akArmor == none || akAddon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   TextureSet result = NiOverride.GetOverrideTextureSet(akActor, isFemale, akArmor, akAddon, node, keyid, index)
   PrintMessage("Override TextureSet for actor " + self.GetFullID(akActor) + " is " + self.GetFullID(result))
 EndEvent
-
 
 Event OnConsoleRemoveAAOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6409,7 +6396,7 @@ Event OnConsoleRemoveAAOverride(String EventName, String sArgument, Float fArgum
   int keyid = self.IntFromSArgument(sArgument, 5)
   int index = self.IntFromSArgument(sArgument, 6)
   If akActor == none || akArmor == none || akAddon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.RemoveOverride(akActor, isFemale, akArmor, akAddon, node, keyid, index)
@@ -6449,7 +6436,7 @@ Event OnConsoleAddPackageOverride(String EventName, String sArgument, Float fArg
     targetPackage = self.FormFromSArgument(sArgument, 2) as Package
   EndIf
   If targetActor == none || targetPackage == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int priority = self.IntFromSArgument(sArgument, 3, 30)
@@ -6457,7 +6444,6 @@ Event OnConsoleAddPackageOverride(String EventName, String sArgument, Float fArg
   ActorUtil.AddPackageOverride(targetActor, targetPackage, priority, flags)
   PrintMessage("AddPackageOverride Actor:" + targetActor + " Package:" + targetPackage + " Priority:" + priority + " Flags:" + flags)
 EndEvent
-
 
 Event OnConsoleRemovePackageOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6475,13 +6461,12 @@ Event OnConsoleRemovePackageOverride(String EventName, String sArgument, Float f
     targetPackage = self.FormFromSArgument(sArgument, 2) as Package
   EndIf
   If targetActor == none || targetPackage == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   bool result = ActorUtil.RemovePackageOverride(targetActor, targetPackage)
   PrintMessage("RemovePackageOverride " + targetActor + " " + targetPackage + " Result: " + result)
 EndEvent
-
 
 Event OnConsoleCountPackageOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6498,14 +6483,13 @@ Event OnConsoleCountPackageOverride(String EventName, String sArgument, Float fA
   EndIf
 
   If targetActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   int count = ActorUtil.CountPackageOverride(targetActor)
   PrintMessage("CountPackageOverride " + targetActor + " Count: " + count)
 EndEvent
-
 
 Event OnConsoleClearPackageOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6522,14 +6506,13 @@ Event OnConsoleClearPackageOverride(String EventName, String sArgument, Float fA
   EndIf
 
   If targetActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   int result = ActorUtil.ClearPackageOverride(targetActor)
   PrintMessage("ClearPackageOverride " + targetActor + " Result: " + result)
 EndEvent
-
 
 Event OnConsoleRemoveAllPackageOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6539,12 +6522,12 @@ Event OnConsoleRemoveAllPackageOverride(String EventName, String sArgument, Floa
   EndIf
   
   ; If QtyPars != 1
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   Package targetPackage = self.FormFromSArgument(sArgument, 1) as Package
   If targetPackage == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int result = ActorUtil.RemoveAllPackageOverride(targetPackage)
@@ -6563,7 +6546,7 @@ Event OnConsoleSetSpellCost(String EventName, String sArgument, Float fArgument,
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   int aiCost = self.IntFromSArgument(sArgument, 2)
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   _SE_SpellExtender.SetSpellCost(akSpell, aiCost)
@@ -6572,7 +6555,6 @@ Event OnConsoleSetSpellCost(String EventName, String sArgument, Float fArgument,
   PrintMessage("SetSpellCost " + self.GetFullID(akSpell) + " " + aiCost)
 EndEvent
 
-
 Event OnConsoleSetChargeTimeAll(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetChargeTimeAll(Spell akSpell, float afTime)")
@@ -6580,13 +6562,13 @@ Event OnConsoleSetChargeTimeAll(String EventName, String sArgument, Float fArgum
     Return
   EndIf
   ; If QtyPars != 2
-  ;   PrintMessage("FATAL ERROR: FormID retrieval failed.")
+  ;   PrintMessage("FATAL ERROR: FormID retrieval failed")
   ;   Return
   ; EndIf
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   float afTime = self.FloatFromSArgument(sArgument, 2)
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   _SE_SpellExtender.SetChargeTimeAll(akSpell, afTime)
@@ -6594,7 +6576,6 @@ Event OnConsoleSetChargeTimeAll(String EventName, String sArgument, Float fArgum
   _SE_SpellExtender.Process()
   PrintMessage("SetChargeTimeAll " + self.GetFullID(akSpell) + " to " + afTime)
 EndEvent
-
 
 Event OnConsoleSetSpellFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6612,14 +6593,14 @@ Event OnConsoleSetSpellFlag(String EventName, String sArgument, Float fArgument,
     Return
   EndIf
   ; If QtyPars != 3
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   int aiFlag = self.IntFromSArgument(sArgument, 2)
   bool abValue = self.BoolFromSArgument(sArgument, 3)
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   _SE_SpellExtender.SetSpellFlag(akSpell, aiFlag, abValue as int)
@@ -6627,7 +6608,6 @@ Event OnConsoleSetSpellFlag(String EventName, String sArgument, Float fArgument,
   _SE_SpellExtender.Process()
   PrintMessage("SetSpellFlag " + self.GetFullID(akSpell) + " " + aiFlag + " " + abValue)
 EndEvent
-
 
 Event OnConsoleSpellFlagHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   PrintMessage("Format: SpellHelp")
@@ -6656,7 +6636,6 @@ Event OnConsoleGetWorldFOV(String EventName, String sArgument, Float fArgument, 
   PrintMessage("GetWorldFOV Result: " + fov)
 EndEvent
 
-
 Event OnConsoleSetWorldFOV(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetWorldFOV(float fov)")
@@ -6664,14 +6643,13 @@ Event OnConsoleSetWorldFOV(String EventName, String sArgument, Float fArgument, 
     Return
   EndIf
   ; If QtyPars != 1
-  ;   PrintMessage("Syntax error.")
+  ;   PrintMessage("Syntax error")
   ;   Return
   ; EndIf
   float fov = self.FloatFromSArgument(sArgument, 1)
   Camera.SetWorldFOV(fov)
   PrintMessage("SetWorldFOV " + fov)
 EndEvent
-
 
 Event OnConsoleGetFirstPersonFOV(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6682,7 +6660,6 @@ Event OnConsoleGetFirstPersonFOV(String EventName, String sArgument, Float fArgu
   float fov = Camera.GetFirstPersonFOV()
   PrintMessage("GetFirstPersonFOV Result: " + fov)
 EndEvent
-
 
 Event OnConsoleSetFirstPersonFOV(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6725,7 +6702,6 @@ Event OnConsoleSetDescription(String EventName, String sArgument, Float fArgumen
   PrintMessage("Set description of " + GetFullID(akObject) + " as:")
   PrintMessage(result)
 EndEvent
-
 
 Event OnConsoleResetDescription(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6772,7 +6748,6 @@ Event OnConsoleGetSeasonOverride(String EventName, String sArgument, Float fArgu
   PrintMessage("GetSeasonOverride: " + season)
 EndEvent
 
-
 Event OnConsoleSetSeasonOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetSeasonOverride(int aiSeason)")
@@ -6790,7 +6765,6 @@ Event OnConsoleSetSeasonOverride(String EventName, String sArgument, Float fArgu
   SeasonsOfSkyrim.SetSeasonOverride(aiSeason)
 EndEvent
 
-
 Event OnConsoleClearSeasonOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: ClearSeasonOverride()")
@@ -6798,9 +6772,8 @@ Event OnConsoleClearSeasonOverride(String EventName, String sArgument, Float fAr
     Return
   EndIf
   SeasonsOfSkyrim.ClearSeasonOverride()
-  PrintMessage("Cleared season override.")
+  PrintMessage("Cleared season override")
 EndEvent
-
 
 Event OnConsoleMenuHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6870,7 +6843,6 @@ Event OnConsoleOpenCustomMenu(String EventName, String sArgument, Float fArgumen
   PrintMessage("Custom UI with path " + swfPath + " launched with flags " + aiFlags)
 EndEvent
 
-
 Event OnConsoleCloseCustomMenu(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: CloseCustomMenu()")
@@ -6912,7 +6884,7 @@ Event OnConsoleVampireFeed(String EventName, String sArgument, Float fArgument, 
   If QtyPars == 1
     akTarget = self.RefFromSArgument(sArgument, 1) as Actor
     If akActor == none
-      PrintMessage("FATAL ERROR: FormID retrieval failed.")
+      PrintMessage("FATAL ERROR: FormID retrieval failed")
       Return
     EndIf
     VampireFeedProxy.VampireFeed(akTarget)
@@ -6920,7 +6892,7 @@ Event OnConsoleVampireFeed(String EventName, String sArgument, Float fArgument, 
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
     akTarget = self.RefFromSArgument(sArgument, 2) as Actor
     If akActor == none || akTarget == none
-      PrintMessage("FATAL ERROR: FormID retrieval failed.")
+      PrintMessage("FATAL ERROR: FormID retrieval failed")
       Return
     EndIf
     VampireFeedProxy.AnyVampireFeed(akActor, akTarget)
@@ -6962,18 +6934,17 @@ Event OnConsoleVCSAddPerk(String EventName, String sArgument, Float fArgument, F
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Perk akPerk = self.FormFromSArgument(sArgument, 1) as Perk
   If akActor == none || akPerk == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   If akActor.HasPerk(akPerk)
-    PrintMessage(self.GetFullID(akActor) + " already has " + self.GetFullID(akPerk) + ".")
+    PrintMessage(self.GetFullID(akActor) + " already has " + self.GetFullID(akPerk))
     Return
   Else
     akActor.AddPerk(akPerk)
-    PrintMessage(self.GetFullID(akActor) + " successfully acquired " + self.GetFullID(akPerk) + ".")
+    PrintMessage(self.GetFullID(akActor) + " successfully acquired " + self.GetFullID(akPerk))
   EndIf
 EndEvent
-
 
 Event OnConsoleVCSRemovePerk(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -6984,18 +6955,17 @@ Event OnConsoleVCSRemovePerk(String EventName, String sArgument, Float fArgument
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Perk akPerk = self.FormFromSArgument(sArgument, 1) as Perk
   If akActor == none || akPerk == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   If akActor.HasPerk(akPerk)
     akActor.RemovePerk(akPerk)
-    PrintMessage(self.GetFullID(akActor) + " successfully removed " + self.GetFullID(akPerk) + ".")
+    PrintMessage(self.GetFullID(akActor) + " successfully removed " + self.GetFullID(akPerk))
   Else
-    PrintMessage(self.GetFullID(akActor) + " already does not have " + self.GetFullID(akPerk) + ".")
+    PrintMessage(self.GetFullID(akActor) + " already does not have " + self.GetFullID(akPerk))
     Return
   EndIf
 EndEvent
-
 
 Event OnConsoleVCSAddBasePerk(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7006,17 +6976,16 @@ Event OnConsoleVCSAddBasePerk(String EventName, String sArgument, Float fArgumen
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Perk akPerk = self.FormFromSArgument(sArgument, 1) as Perk
   If akActor == none || akPerk == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   bool result = PO3_SKSEFunctions.AddBasePerk(akActor, akPerk)
   If result
-    PrintMessage(self.GetFullID(akActor) + " successfully Addd " + self.GetFullID(akPerk) + ".")
+    PrintMessage(self.GetFullID(akActor) + " successfully Addd " + self.GetFullID(akPerk))
   Else 
-    PrintMessage(self.GetFullID(akActor) + " failed to Add " + self.GetFullID(akPerk) + ".")
+    PrintMessage(self.GetFullID(akActor) + " failed to Add " + self.GetFullID(akPerk))
   EndIf
 EndEvent
-
 
 Event OnConsoleVCSAddBaseSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7027,17 +6996,16 @@ Event OnConsoleVCSAddBaseSpell(String EventName, String sArgument, Float fArgume
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   If akActor == none || akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   bool result = PO3_SKSEFunctions.AddBaseSpell(akActor, akSpell)
   If result
-    PrintMessage(self.GetFullID(akActor) + " successfully Addd " + self.GetFullID(akSpell) + ".")
+    PrintMessage(self.GetFullID(akActor) + " successfully Addd " + self.GetFullID(akSpell))
   Else 
-    PrintMessage(self.GetFullID(akActor) + " failed to Add " + self.GetFullID(akSpell) + ".")
+    PrintMessage(self.GetFullID(akActor) + " failed to Add " + self.GetFullID(akSpell))
   EndIf
 EndEvent
-
 
 Event OnConsoleVCSRemoveBasePerk(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7048,17 +7016,16 @@ Event OnConsoleVCSRemoveBasePerk(String EventName, String sArgument, Float fArgu
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Perk akPerk = self.FormFromSArgument(sArgument, 1) as Perk
   If akActor == none || akPerk == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   bool result = PO3_SKSEFunctions.RemoveBasePerk(akActor, akPerk)
   If result
-    PrintMessage(self.GetFullID(akActor) + " successfully removed " + self.GetFullID(akPerk) + ".")
+    PrintMessage(self.GetFullID(akActor) + " successfully removed " + self.GetFullID(akPerk))
   Else 
-    PrintMessage(self.GetFullID(akActor) + " failed to remove " + self.GetFullID(akPerk) + ".")
+    PrintMessage(self.GetFullID(akActor) + " failed to remove " + self.GetFullID(akPerk))
   EndIf
 EndEvent
-
 
 Event OnConsoleVCSRemoveBaseSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7069,17 +7036,16 @@ Event OnConsoleVCSRemoveBaseSpell(String EventName, String sArgument, Float fArg
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   If akActor == none || akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   bool result = PO3_SKSEFunctions.RemoveBaseSpell(akActor, akSpell)
   If result
-    PrintMessage(self.GetFullID(akActor) + " successfully removed " + self.GetFullID(akSpell) + ".")
+    PrintMessage(self.GetFullID(akActor) + " successfully removed " + self.GetFullID(akSpell))
   Else 
-    PrintMessage(self.GetFullID(akActor) + " failed to remove " + self.GetFullID(akSpell) + ".")
+    PrintMessage(self.GetFullID(akActor) + " failed to remove " + self.GetFullID(akSpell))
   EndIf
 EndEvent
-
 
 Event OnConsoleAllowPCDialogue(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7090,13 +7056,12 @@ Event OnConsoleAllowPCDialogue(String EventName, String sArgument, Float fArgume
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   bool abTalk = self.BoolFromSArgument(sArgument, 1, true)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.AllowPCDialogue(abTalk)
   PrintMessage("Allowed PC dialogue for " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleMakePlayerFriend(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7109,13 +7074,12 @@ Event OnConsoleMakePlayerFriend(String EventName, String sArgument, Float fArgum
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.MakePlayerFriend()
-  PrintMessage("Made " + self.GetFullID(akActor) + " a friend.")
+  PrintMessage("Made " + self.GetFullID(akActor) + " a friend")
 EndEvent
-
 
 Event OnConsolePreventDetection(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7128,13 +7092,12 @@ Event OnConsolePreventDetection(String EventName, String sArgument, Float fArgum
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.PreventActorDetection(akActor)
   PrintMessage("Prevented detection of " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleRegenerateHead(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7147,13 +7110,12 @@ Event OnConsoleRegenerateHead(String EventName, String sArgument, Float fArgumen
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.RegenerateHead()
   PrintMessage("Regenerated head of " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleKillSilent(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7166,13 +7128,12 @@ Event OnConsoleKillSilent(String EventName, String sArgument, Float fArgument, F
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.KillSilent()
   PrintMessage("Killed " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleKillEssential(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7185,13 +7146,12 @@ Event OnConsoleKillEssential(String EventName, String sArgument, Float fArgument
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.KillEssential()
   PrintMessage("Killed " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsolePathToReference(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7212,13 +7172,12 @@ Event OnConsolePathToReference(String EventName, String sArgument, Float fArgume
     afWalkRunPercent = self.FloatFromSArgument(sArgument, 3)
   EndIf
   If akActor == none || akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.PathToReference(akRef,afWalkRunPercent)
-  PrintMessage("Pathed " + self.GetFullID(akActor) + " to " + self.GetFullID(akRef) + " at " + afWalkRunPercent + " speed.")
+  PrintMessage("Pathed " + self.GetFullID(akActor) + " to " + self.GetFullID(akRef) + " at " + afWalkRunPercent + " speed")
 EndEvent
-
 
 Event OnConsoleClearForcedMovement(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7231,13 +7190,12 @@ Event OnConsoleClearForcedMovement(String EventName, String sArgument, Float fAr
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ClearForcedMovement()
-  PrintMessage("Cleared forced movement for " + self.GetFullID(akActor) + ".")
+  PrintMessage("Cleared forced movement for " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleSetUnconscious(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7250,13 +7208,12 @@ Event OnConsoleSetUnconscious(String EventName, String sArgument, Float fArgumen
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.SetUnconscious()
-  PrintMessage("Set " + self.GetFullID(akActor) + " unconscious.")
+  PrintMessage("Set " + self.GetFullID(akActor) + " unconscious")
 EndEvent
-
 
 Event OnConsoleGetNthHeadPart(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7273,13 +7230,12 @@ Event OnConsoleGetNthHeadPart(String EventName, String sArgument, Float fArgumen
     slotPart = self.IntFromSArgument(sArgument, 2)
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("Headpart " + slotPart + " of " + self.GetFullID(akActorBase) + " is " + self.GetFullID(akActorbase.GetNthHeadPart(slotPart)))
 EndEvent
-
 
 Event OnConsoleSetNthHeadPart(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7299,11 +7255,11 @@ Event OnConsoleSetNthHeadPart(String EventName, String sArgument, Float fArgumen
     akHeadPart = self.FormFromSArgument(sArgument, 3) as HeadPart
   EndIf
   If akActorbase == none || akHeadPart == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Headpart akOldHeadpart = akActorbase.GetNthHeadPart(slotPart)
-  PrintMessage("Headpart " + slotPart + " of " + self.GetFullID(akActorBase) + " is currently " + self.GetFullID(akOldHeadpart) + ". Attempting to change to " + self.GetFullID(akHeadPart) + ".")
+  PrintMessage("Headpart " + slotPart + " of " + self.GetFullID(akActorBase) + " is currently " + self.GetFullID(akOldHeadpart) + ". Attempting to change to " + self.GetFullID(akHeadPart))
   akActorBase.SetNthHeadPart(akHeadPart, slotPart)
   HeadPart akNewHeadpart = akActorbase.GetNthHeadPart(slotPart)
   If akHeadPart == akNewHeadpart
@@ -7312,23 +7268,21 @@ Event OnConsoleSetNthHeadPart(String EventName, String sArgument, Float fArgumen
   PrintMessage("Headpart " + slotPart + " of " + self.GetFullID(akActorBase) + " is now " + self.GetFullID(akNewHeadpart))
 EndEvent
 
-
 Event OnConsoleGetDoorDestination(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetDoorDestination(<ObjectReference akDoor = GetSelectedReference()>)")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  PrintMessage("Must be used with a selected reference.")
+  PrintMessage("Must be used with a selected reference")
   ObjectReference akDoor = ConsoleUtil.GetSelectedReference()
   If akDoor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ObjectReference akDestination = PO3_SKSEFunctions.GetDoorDestination(akDoor)
   PrintMessage("Destination of " + self.GetFullID(akDoor) + " is " + self.GetFullID(akDestination))
 EndEvent
-
 
 Event OnConsoleSetDoorDestination(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7336,16 +7290,16 @@ Event OnConsoleSetDoorDestination(String EventName, String sArgument, Float fArg
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  PrintMessage("Must be used with a selected reference.")
+  PrintMessage("Must be used with a selected reference")
   ObjectReference akDoor = ConsoleUtil.GetSelectedReference()
   If !IsLoadDoor(akDoor)
-    PrintMessage(self.GetFullID(akDoor) + " is not a load door. This must be set in CreationKit.")
-    PrintMessage("You might want to try attaching a teleport script to it instead.")
+    PrintMessage(self.GetFullID(akDoor) + " is not a load door. This must be set in CreationKit")
+    PrintMessage("You might want to try attaching a teleport script to it instead")
     Return
   EndIf
   ObjectReference akDestination = self.RefFromSArgument(sArgument, 1)
   If akDoor == none || akDestination == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   bool success = PO3_SKSEFunctions.SetDoorDestination(akDestination, akDoor)
@@ -7358,41 +7312,42 @@ Event OnConsoleSetDoorDestination(String EventName, String sArgument, Float fArg
   EndIf
 EndEvent
 
-
 Event OnConsoleDuplicate(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: Duplicate([bool atMe = false])")
+  PrintMessage("Format: Duplicate([bool abAtMe = false], [bool abStartMoving = true])")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  PrintMessage("Must be used with a selected reference.")
+  PrintMessage("Must be used with a selected reference")
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
-  bool atMe = self.BoolFromSArgument(sArgument, 1, false)
+  bool abAtMe = self.BoolFromSArgument(sArgument, 1, false)
+  bool abStartMoving = self.BoolFromSArgument(sArgument, 2, true)
   Form akForm = akRef.GetBaseObject()
   ObjectReference newRef
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
-  If atMe
+  If abAtMe
     newRef = PlayerRef.PlaceAtMe(akForm)
-    PrintMessage("Duplicated " + self.GetFullID(akForm) + " as " + self.GetFullID(newRef) + " at player.")
+    PrintMessage("Duplicated " + self.GetFullID(akForm) + " as " + self.GetFullID(newRef) + " at player")
   Else
     newRef = akRef.PlaceAtMe(akForm)
-    PrintMessage("Duplicated " + self.GetFullID(akForm) + " as " + self.GetFullID(newRef) + " at " + self.GetFullID(akRef) + ".")
+    PrintMessage("Duplicated " + self.GetFullID(akForm) + " as " + self.GetFullID(newRef) + " at " + self.GetFullID(akRef))
   EndIf
-  ObjectManipulationOverhaul.StartDraggingObject(newRef)
+  If abStartMoving
+    ObjectManipulationOverhaul.StartDraggingObject(newRef)
+  EndIf
 EndEvent
-
 
 Event OnConsoleSetLinkedRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetLinkedRef(ObjectReference akRef, ObjectReference akTargetRef, Keyword akKeyword = None)")
-  PrintMessage("Pass None into akTargetRef to unset the linked ref.")
+  PrintMessage("Pass None into akTargetRef to unset the linked ref")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  PrintMessage("Must be used with a selected reference.")
+  PrintMessage("Must be used with a selected reference")
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   ObjectReference akTargetRef = self.RefFromSArgument(sArgument, 1)
   Keyword akKeyword = self.FormFromSArgument(sArgument, 2) as Keyword
@@ -7402,7 +7357,7 @@ Event OnConsoleSetLinkedRef(String EventName, String sArgument, Float fArgument,
   EndIf
 
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   If akTargetRef == none
@@ -7413,7 +7368,6 @@ Event OnConsoleSetLinkedRef(String EventName, String sArgument, Float fArgument,
     PrintMessage("Set " + self.GetFullID(akRef) + " linked to " + self.GetFullID(akTargetRef) + " with keyword " + self.GetFullID(akKeyword))
   EndIf
 EndEvent
-
 
 Event OnConsoleRemoveAllItems(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7431,14 +7385,13 @@ Event OnConsoleRemoveAllItems(String EventName, String sArgument, Float fArgumen
   bool abNoQuestItem = self.BoolFromSArgument(sArgument, 7, true)
   
   If Ref == none
-      PrintMessage("FATAL ERROR: FormID retrieval failed.")
+      PrintMessage("FATAL ERROR: FormID retrieval failed")
       Return
   EndIf
   
   DbMiscFunctions.RemoveAllItems(Ref, otherContainer, abSilent, delay, abNoEquipped, abNoFavorited, abNoQuestItem)
   PrintMessage("Removed all items from " + self.GetFullID(Ref))
 EndEvent
-
 
 Event OnConsoleGetAllFormsWithScriptAttached(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7458,7 +7411,6 @@ Event OnConsoleGetAllFormsWithScriptAttached(String EventName, String sArgument,
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetAllAliasesWithScriptAttached(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetAllAliasesWithScriptAttached(string sScriptName)")
@@ -7476,7 +7428,6 @@ Event OnConsoleGetAllAliasesWithScriptAttached(String EventName, String sArgumen
       i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleGetAllRefAliasesWithScriptAttached(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7498,21 +7449,19 @@ Event OnConsoleGetAllRefAliasesWithScriptAttached(String EventName, String sArgu
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetLastMenuOpened(String EventName, String sArgument, Float fArgument, Form Sender)
     Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
     String lastMenu = DbSKSEFunctions.GetLastMenuOpened()
     If lastMenu == "" 
-      PrintMessage("No menu found.")
+      PrintMessage("No menu found")
       Return
     EndIf
     PrintMessage("The last menu that was found is " + lastMenu)
 EndEvent
 
-
 Event OnConsoleActorValueHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("ActorValueHelp [<string helpString>].")
+  PrintMessage("ActorValueHelp [<string helpString>]")
 
   PrintMessage("Actor Value Help")
   PrintMessage("======================================================================")
@@ -7701,12 +7650,11 @@ Event OnConsoleActorValueHelp(String EventName, String sArgument, Float fArgumen
   Endwhile
 
   if !found
-    PrintMessage("No matching actor value found.")
+    PrintMessage("No matching actor value found")
   endif
   PrintMessage("======================================================================")
 
 EndEvent
-
 
 Event OnConsoleCreateFormList(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7715,13 +7663,12 @@ Event OnConsoleCreateFormList(String EventName, String sArgument, Float fArgumen
   FormList akFormList = DbSKSEFunctions.CreateFormList()
 
   If akFormList == none
-    PrintMessage("Failed to create formlist.")
+    PrintMessage("Failed to create formlist")
     Return
   EndIf
 
   PrintMessage("Created formlist with form ID " + self.GetFullID(akFormList))
 EndEvent
-
 
 Event OnConsoleCreateKeyword(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7730,13 +7677,12 @@ Event OnConsoleCreateKeyword(String EventName, String sArgument, Float fArgument
   Keyword akKeyword = DbSKSEFunctions.CreateKeyword()
 
   If akKeyword == none
-    PrintMessage("Failed to create keyword.")
+    PrintMessage("Failed to create keyword")
     Return
   EndIf
 
   PrintMessage("Created Keyword with form ID " + self.GetFullID(akKeyword))
 EndEvent
-
 
 Event OnConsoleCreateConstructibleObject(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7745,13 +7691,12 @@ Event OnConsoleCreateConstructibleObject(String EventName, String sArgument, Flo
   ConstructibleObject akConstructible = DbSKSEFunctions.CreateConstructibleObject()
 
   If akConstructible == none
-    PrintMessage("Failed to create ConstructibleObject.")
+    PrintMessage("Failed to create ConstructibleObject")
     Return
   EndIf
 
   PrintMessage("Created ConstructibleObject with form ID " + self.GetFullID(akConstructible))
 EndEvent
-
 
 Event OnConsoleCreateTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7760,13 +7705,12 @@ Event OnConsoleCreateTextureSet(String EventName, String sArgument, Float fArgum
   TextureSet akTextureSet = DbSKSEFunctions.CreateTextureSet()
 
   If akTextureSet == none
-    PrintMessage("Failed to create TextureSet.")
+    PrintMessage("Failed to create TextureSet")
     Return
   EndIf
 
-  PrintMessage("Created TextureSet with form ID " + self.GetFullID(akTextureSet))
+  PrintMessage("Created TextureSet as " + self.GetFullID(akTextureSet))
 EndEvent
-
 
 Event OnConsoleGetAllConstructibleObjects(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7786,7 +7730,6 @@ Event OnConsoleGetAllConstructibleObjects(String EventName, String sArgument, Fl
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetAllActorPlayableSpells(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetPlayableSpells([Actor akActor = GetSelectedReference()])")
@@ -7804,14 +7747,13 @@ Event OnConsoleGetAllActorPlayableSpells(String EventName, String sArgument, Flo
   int i = 0
   int L = ActorSpells.Length
   If L > 0
-    PrintMessage("Found " + L + " spells.")
+    PrintMessage("Found " + L + " spells")
   EndIf
   While i < ActorSpells.Length
     PrintMessage("Spell #" + i + ": " + ActorSpells[i])
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleGetAshPileLinkedRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7821,12 +7763,11 @@ Event OnConsoleGetAshPileLinkedRef(String EventName, String sArgument, Float fAr
   EndIf
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Ash pile is linked to " + self.GetFullID(GetAshPileLinkedRef(akRef)))
 EndEvent
-
 
 Event OnConsoleRemoveAllInventoryEventFilters(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7836,13 +7777,12 @@ Event OnConsoleRemoveAllInventoryEventFilters(String EventName, String sArgument
   EndIf
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akRef.RemoveAllInventoryEventFilters()
   PrintMessage("Inventory event filters removed from " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleSetActorOwner(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7853,13 +7793,12 @@ Event OnConsoleSetActorOwner(String EventName, String sArgument, Float fArgument
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   ActorBase akActorBase = self.FormFromSArgument(sArgument, 1) as ActorBase
   If akRef == none || akActorBase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akRef.SetActorOwner(akActorBase)
   PrintMessage(self.GetFullID(akActorBase) + " is now owner of " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleSetHarvested(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7870,13 +7809,12 @@ Event OnConsoleSetHarvested(String EventName, String sArgument, Float fArgument,
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   bool abHarvested = self.BoolFromSArgument(sArgument, 1, false)
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akRef.SetHarvested(abHarvested)
   PrintMessage(self.GetFullID(akRef) + " is harvested: " + abHarvested)
 EndEvent
-
 
 Event OnConsoleSetOpen(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7887,13 +7825,12 @@ Event OnConsoleSetOpen(String EventName, String sArgument, Float fArgument, Form
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   bool abOpen = self.BoolFromSArgument(sArgument, 1, false)
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akRef.SetOpen(abOpen)
   PrintMessage(self.GetFullID(akRef) + " is opened: " + abOpen)
 EndEvent
-
 
 Event OnConsoleGetCurrentScene(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7903,12 +7840,11 @@ Event OnConsoleGetCurrentScene(String EventName, String sArgument, Float fArgume
   EndIf
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Actor " + self.GetFullID(akRef) + " is playing the scene " + self.GetFullID(akRef.GetCurrentScene()))
 EndEvent
-
 
 Event OnConsoleFreezeActor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7925,13 +7861,12 @@ Event OnConsoleFreezeActor(String EventName, String sArgument, Float fArgument, 
   int aiType = self.IntFromSArgument(sArgument, 1)
   bool abFreeze = self.BoolFromSArgument(sArgument, 1, true)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.FreezeActor(akActor, aiType, abFreeze)
   PrintMessage(self.GetFullID(akActor) + " is frozen: " + abFreeze)
 EndEvent
-
 
 Event OnConsoleGetMaterialType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7942,16 +7877,16 @@ Event OnConsoleGetMaterialType(String EventName, String sArgument, Float fArgume
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   String asNodeName = self.StringFromSArgument(sArgument, 1)
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   String[] MaterialTypes = PO3_SKSEFunctions.GetMaterialType(akRef, asNodeName)
   Int i = 0
   Int L = MaterialTypes.Length
   If L > 0
-    PrintMessage("Found " + L + " material types.")
+    PrintMessage("Found " + L + " material types")
   Else
-    PrintMessage("Found no material types.")
+    PrintMessage("Found no material types")
     Return
   EndIf
   While i < L
@@ -7959,7 +7894,6 @@ Event OnConsoleGetMaterialType(String EventName, String sArgument, Float fArgume
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleGetActiveGamebryoAnimation(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -7969,7 +7903,7 @@ Event OnConsoleGetActiveGamebryoAnimation(String EventName, String sArgument, Fl
   EndIf
   ObjectReference akRef = ConsoleUtil.GetSelectedReference()
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   String animation = PO3_SKSEFunctions.GetActiveGamebryoAnimation(akRef)
@@ -7980,7 +7914,6 @@ Event OnConsoleGetActiveGamebryoAnimation(String EventName, String sArgument, Fl
   PrintMessage(self.GetFullID(akRef) + " is playing " + animation)
 EndEvent
 
-
 Event OnConsoleGetFootstepSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetFootstepSet(ArmorAddon akArma)")
@@ -7990,14 +7923,13 @@ Event OnConsoleGetFootstepSet(String EventName, String sArgument, Float fArgumen
   ArmorAddon akArma = FormFromSArgument(sArgument, 1) as ArmorAddon
 
   If !akArma
-    PrintMessage("Form retrieval failure.")
+    PrintMessage("Form retrieval failure")
     Return
   EndIf
 
   FootStepSet akFSS = PO3_SKSEFunctions.GetFootstepSet(akArma)
   PrintMessage("Footstep set is " + self.GetFullID(akFSS))
 EndEvent
-
 
 Event OnConsoleSetFootstepSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8011,7 +7943,7 @@ Event OnConsoleSetFootstepSet(String EventName, String sArgument, Float fArgumen
   FootStepSet akTargetFSS = FormFromSArgument(sArgument, 2) as FootStepSet
 
   If akArma == none || akNewFSS == none
-    PrintMessage("Form retrieval failure.")
+    PrintMessage("Form retrieval failure")
     Return
   EndIf
 
@@ -8026,7 +7958,6 @@ Event OnConsoleSetFootstepSet(String EventName, String sArgument, Float fArgumen
   PrintMessage("Footstep set is now " + self.GetFullID(akNewFSS))
 
 EndEvent
-
 
 Event OnConsoleNiOverrideHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8050,7 +7981,6 @@ Event OnConsoleNiOverrideHelp(String EventName, String sArgument, Float fArgumen
   PrintMessage("24 - float      -       ControllerPhase")
 EndEvent
 
-
 Event OnConsoleSetHeadPartValidRaces(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetHDPTValidRaces(HeadPart akHeadPart, FormList vRaces)")
@@ -8060,12 +7990,11 @@ Event OnConsoleSetHeadPartValidRaces(String EventName, String sArgument, Float f
   HeadPart akHeadPart = self.FormFromSArgument(sArgument, 1) as HeadPart
   FormList vRaces = self.FormFromSArgument(sArgument, 2) as FormList
   If akHeadPart == none || vRaces == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
   EndIf
   akHeadPart.SetValidRaces(vRaces)
   PrintMessage(self.GetFullID(vRaces) + " set as valid races for " + self.GetFullID(akHeadPart))
 EndEvent
-
 
 Event OnConsoleGetKeywords(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8079,16 +8008,16 @@ Event OnConsoleGetKeywords(String EventName, String sArgument, Float fArgument, 
   EndIf
   
   If akForm == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   Keyword[] result = akForm.GetKeywords()
   int L = result.Length
   If L > 0
-    PrintMessage("Found " + L + " keywords.")
+    PrintMessage("Found " + L + " keywords")
   Else
-    PrintMessage("Form does not have keywords.")
+    PrintMessage("Form does not have keywords")
     Return
   EndIf
   Int i = 0
@@ -8097,7 +8026,6 @@ Event OnConsoleGetKeywords(String EventName, String sArgument, Float fArgument, 
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleLearnEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8113,7 +8041,7 @@ Event OnConsoleLearnEnchantment(String EventName, String sArgument, Float fArgum
   EndIf
   
   If akEnchantment == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -8124,7 +8052,6 @@ Event OnConsoleLearnEnchantment(String EventName, String sArgument, Float fArgum
     PrintMessage("Player now does not know " + self.GetFullID(akEnchantment))
   EndIf
 EndEvent
-
 
 Event OnConsoleEnableSurvivalFeature(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8142,7 +8069,6 @@ Event OnConsoleEnableSurvivalFeature(String EventName, String sArgument, Float f
   PrintMessage("Enabled feature " + aiFeature)
 EndEvent
 
-
 Event OnConsoleDisableSurvivalFeature(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: DisableSurvivalFeature(int aiFeature)")
@@ -8159,7 +8085,6 @@ Event OnConsoleDisableSurvivalFeature(String EventName, String sArgument, Float 
   PrintMessage("Disabled feature " + aiFeature)
 EndEvent
 
-
 Event OnConsoleRestoreColdLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: RestoreColdLevel(float coldRestoreAmount)")
@@ -8168,9 +8093,8 @@ Event OnConsoleRestoreColdLevel(String EventName, String sArgument, Float fArgum
   EndIf
   Float coldRestoreAmount = self.FloatFromSArgument(sArgument, 1)
   SurvivalModeImprovedApi.RestoreColdLevel(coldRestoreAmount)
-  PrintMessage("Restored cold level by " + coldRestoreAmount + " points.")
+  PrintMessage("Restored cold level by " + coldRestoreAmount + " points")
 EndEvent
-
 
 Event OnConsoleRestoreHungerLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8180,9 +8104,8 @@ Event OnConsoleRestoreHungerLevel(String EventName, String sArgument, Float fArg
   EndIf
   Float hungerRestoreAmount = self.FloatFromSArgument(sArgument, 1)
   SurvivalModeImprovedApi.RestoreHungerLevel(hungerRestoreAmount)
-  PrintMessage("Restored hunger level by " + hungerRestoreAmount + " points.")
+  PrintMessage("Restored hunger level by " + hungerRestoreAmount + " points")
 EndEvent
-
 
 Event OnConsoleRestoreExhaustionLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8192,9 +8115,8 @@ Event OnConsoleRestoreExhaustionLevel(String EventName, String sArgument, Float 
   EndIf
   Float exhaustionRestoreAmount = self.FloatFromSArgument(sArgument, 1)
   SurvivalModeImprovedApi.RestoreExhaustionLevel(exhaustionRestoreAmount)
-  PrintMessage("Restored exhaustion level by " + exhaustionRestoreAmount + " points.")
+  PrintMessage("Restored exhaustion level by " + exhaustionRestoreAmount + " points")
 EndEvent
-
 
 Event OnConsoleGetAllRefsInGrid(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8206,9 +8128,9 @@ Event OnConsoleGetAllRefsInGrid(String EventName, String sArgument, Float fArgum
   Int i = 0
   Int L = refs.Length
   If L > 0
-    PrintMessage("Found " + L + " references.")
+    PrintMessage("Found " + L + " references")
   Else
-    PrintMessage("Found no references.")
+    PrintMessage("Found no references")
     Return
   EndIf
   While i < L
@@ -8216,7 +8138,6 @@ Event OnConsoleGetAllRefsInGrid(String EventName, String sArgument, Float fArgum
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleGetButtonForDXScanCode(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8229,7 +8150,6 @@ Event OnConsoleGetButtonForDXScanCode(String EventName, String sArgument, Float 
   PrintMessage("Key is " + keyName)
 EndEvent
 
-
 Event OnConsoleCalmActor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: CalmActor(Actor akActor, bool abDoCalm = true)")
@@ -8239,16 +8159,15 @@ Event OnConsoleCalmActor(String EventName, String sArgument, Float fArgument, Fo
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   bool abDoCalm = self.BoolFromSArgument(sArgument, 1, true)
   If akActor == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   If abDoCalm
-    PrintMessage(self.GetFullID(akActor) + " was calmed.")
+    PrintMessage(self.GetFullID(akActor) + " was calmed")
   Else
-    PrintMessage(self.GetFullID(akActor) + " is not calmed.")
+    PrintMessage(self.GetFullID(akActor) + " is not calmed")
   EndIf
 EndEvent
-
 
 Event OnConsoleGetQuality(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8258,12 +8177,11 @@ Event OnConsoleGetQuality(String EventName, String sArgument, Float fArgument, F
   EndIf
   Apparatus akApparatus = self.FormFromSArgument(sArgument, 1) as Apparatus
   If akApparatus == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Quality of " + akApparatus + " is " + akApparatus.GetQuality())
 EndEvent
-
 
 Event OnConsoleSetQuality(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8273,7 +8191,7 @@ Event OnConsoleSetQuality(String EventName, String sArgument, Float fArgument, F
   EndIf
   Apparatus akApparatus = self.FormFromSArgument(sArgument, 1) as Apparatus
   If akApparatus == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Int aiQuality = self.IntFromSArgument(sArgument, 2)
@@ -8282,7 +8200,6 @@ Event OnConsoleSetQuality(String EventName, String sArgument, Float fArgument, F
   akApparatus.SetQuality(aiQuality)
   PrintMessage("Quality of " + akApparatus + " is now " + akApparatus.GetQuality())
 EndEvent
-
 
 Event OnConsoleCastEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8303,13 +8220,12 @@ Event OnConsoleCastEnchantment(String EventName, String sArgument, Float fArgume
     akTarget = self.FormFromSArgument(sArgument, 3) as Actor
   EndIf
   If akSource == none || akEnchantment == none || akTarget == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ANDR_PapyrusFunctions.CastEnchantment(akSource, akEnchantment, akTarget)
-  PrintMessage(self.GetFullID(akSource) + " cast enchantment " + self.GetFullID(akEnchantment) + " at " + self.GetFullID(akTarget) + ".")
+  PrintMessage(self.GetFullID(akSource) + " cast enchantment " + self.GetFullID(akEnchantment) + " at " + self.GetFullID(akTarget))
 EndEvent
-
 
 Event OnConsoleCastPotion(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8330,13 +8246,12 @@ Event OnConsoleCastPotion(String EventName, String sArgument, Float fArgument, F
     akTarget = self.FormFromSArgument(sArgument, 3) as Actor
   EndIf
   If akSource == none || akPotion == none || akTarget == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ANDR_PapyrusFunctions.CastPotion(akSource, akPotion, akTarget)
-  PrintMessage(self.GetFullID(akSource) + " cast potion " + self.GetFullID(akPotion) + " at " + self.GetFullID(akTarget) + ".")
+  PrintMessage(self.GetFullID(akSource) + " cast potion " + self.GetFullID(akPotion) + " at " + self.GetFullID(akTarget))
 EndEvent
-
 
 Event OnConsoleCastIngredient(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8357,13 +8272,12 @@ Event OnConsoleCastIngredient(String EventName, String sArgument, Float fArgumen
     akTarget = self.FormFromSArgument(sArgument, 3) as Actor
   EndIf
   If akSource == none || akIngedient == none || akTarget == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ANDR_PapyrusFunctions.CastIngredient(akSource, akIngedient, akTarget)
-  PrintMessage(self.GetFullID(akSource) + " cast ingredient " + self.GetFullID(akIngedient) + " at " + self.GetFullID(akTarget) + ".")
+  PrintMessage(self.GetFullID(akSource) + " cast ingredient " + self.GetFullID(akIngedient) + " at " + self.GetFullID(akTarget))
 EndEvent
-
 
 Event OnConsoleSetRefAsNoAIAcquire(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8381,13 +8295,12 @@ Event OnConsoleSetRefAsNoAIAcquire(String EventName, String sArgument, Float fAr
     SetNoAIAquire = self.BoolFromSArgument(sArgument, 2, true)
   EndIf
   If akObject == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ANDR_PapyrusFunctions.SetRefAsNoAIAcquire(akObject, SetNoAIAquire)
 
 EndEvent
-
 
 Event OnConsoleTrainWith(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8402,12 +8315,11 @@ Event OnConsoleTrainWith(String EventName, String sArgument, Float fArgument, Fo
     akTrainer = self.FormFromSArgument(sArgument, 1) as Actor
   EndIf
   If akTrainer == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Game.ShowTrainingMenu(akTrainer)
 EndEvent
-
 
 Event OnConsoleQueryStat(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8419,7 +8331,6 @@ Event OnConsoleQueryStat(String EventName, String sArgument, Float fArgument, Fo
   Game.QueryStat(asStat)
 EndEvent
 
-
 Event OnConsoleSetMiscStat(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetMiscStat(String asName, Int aiValue)")
@@ -8430,7 +8341,6 @@ Event OnConsoleSetMiscStat(String EventName, String sArgument, Float fArgument, 
   Int aiValue = self.IntFromSArgument(sArgument, 2)
   Game.SetMiscStat(asName, aiValue)
 EndEvent
-
 
 Event OnConsoleHeadpartHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8449,7 +8359,6 @@ Event OnConsoleHeadpartHelp(String EventName, String sArgument, Float fArgument,
   PrintMessage("Type_Brows        = 6")
   PrintMessage("=====================")
 EndEvent
-
 
 Event OnConsoleCollisionHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8517,7 +8426,6 @@ Event OnConsoleCollisionHelp(String EventName, String sArgument, Float fArgument
   PrintMessage("====================================")
 EndEvent
 
-
 Event OnConsoleFactionFlagHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: FactionFlagHelp()")
@@ -8542,7 +8450,6 @@ Event OnConsoleFactionFlagHelp(String EventName, String sArgument, Float fArgume
   PrintMessage("============================================")
 EndEvent
 
-
 Event OnConsoleGetSkillLegendaryLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetSkillLegendaryLevel(ActorValueInfo akAVInfo)")
@@ -8551,12 +8458,11 @@ Event OnConsoleGetSkillLegendaryLevel(String EventName, String sArgument, Float 
   EndIf
   ActorValueInfo akAVInfo = self.FormFromSArgument(sArgument, 1) as ActorValueInfo
   If akAVInfo == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Legendary level of skill " + self.GetFullID(akAVInfo) + " is " + akAVInfo.GetSkillLegendaryLevel())
 EndEvent
-
 
 Event OnConsoleSetSkillLegendaryLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8572,7 +8478,6 @@ Event OnConsoleSetSkillLegendaryLevel(String EventName, String sArgument, Float 
   PrintMessage("Legendary level of skill " + self.GetFullID(akAVInfo) + " is now " + akAVInfo.GetSkillLegendaryLevel())
 EndEvent
 
-
 Event OnConsoleGetSlowTimeMult(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetSlowTimeMult(bool _GetWorldTimeMult = true)")
@@ -8583,7 +8488,6 @@ Event OnConsoleGetSlowTimeMult(String EventName, String sArgument, Float fArgume
   float TimeMult = Trash_Function.GetSlowTimeMult(_GetWorldTimeMult)
   PrintMessage("Current time multiplier is " + TimeMult)
 EndEvent
-
 
 Event OnConsoleSetSlowTimeMult(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8609,7 +8513,6 @@ Event OnConsoleSetSlowTimeMult(String EventName, String sArgument, Float fArgume
   PrintMessage("Tried. Current player time multiplier is " + PlayerTimeMult)
 EndEvent
 
-
 Event OnConsoleApplyMeleeHit(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: ApplyMeleeHit(Actor _attacker, Actor _victim, bool lefthand = false)")
@@ -8620,12 +8523,11 @@ Event OnConsoleApplyMeleeHit(String EventName, String sArgument, Float fArgument
   Actor _victim = self.FormFromSArgument(sArgument, 2) as Actor
   bool lefthand = self.BoolFromSArgument(sArgument, 3, false)
   If _attacker == none || _victim == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   Trash_Function.ApplyMeleeHit(_attacker, _victim, lefthand)
 EndEvent
-
 
 Event OnConsoleApplyHit(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8638,30 +8540,40 @@ Event OnConsoleApplyHit(String EventName, String sArgument, Float fArgument, For
   Weapon _weapon = self.FormFromSArgument(sArgument, 3) as Weapon
   bool _applyench = self.BoolFromSArgument(sArgument, 4, false)
   If _attacker == none || _victim == none || _weapon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   Trash_Function.ApplyHit(_attacker, _victim, _weapon, _applyench)
 EndEvent
 
-
 Event OnConsoleTemperEquipment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: TemperEquipment(Actor tmpActor, Form equipment, float minHealth, float maxHealth)")
+  PrintMessage("Format: TemperEquipment([Actor tmpActor = GetSelectedReference()], Form equipment, float minHealth, float maxHealth)")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  Actor tmpActor = self.FormFromSArgument(sArgument, 1) as Actor
-  Form equipment = self.FormFromSArgument(sArgument, 2) 
-  float minHealth = self.FloatFromSArgument(sArgument, 3, 0.0)
-  float maxHealth = self.FloatFromSArgument(sArgument, 4, 0.0)
+    Actor tmpActor
+    Form equipment
+    float minHealth
+    float maxHealth 
+  If QtyPars == 3
+    tmpActor = ConsoleUtil.GetSelectedReference() as Actor
+    equipment = self.FormFromSArgument(sArgument, 2) 
+    minHealth = self.FloatFromSArgument(sArgument, 3, 0.0)
+    maxHealth = self.FloatFromSArgument(sArgument, 4, 0.0)
+  ElseIf QtyPars == 4
+    tmpActor = self.FormFromSArgument(sArgument, 1) as Actor
+    equipment = self.FormFromSArgument(sArgument, 2) 
+    minHealth = self.FloatFromSArgument(sArgument, 3, 0.0)
+    maxHealth = self.FloatFromSArgument(sArgument, 4, 0.0)
+  EndIf
+
   If tmpActor == none || equipment == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   sztkUtil.TemperEquipment(tmpActor, equipment, minHealth, maxHealth)
 EndEvent
-
 
 Event OnConsoleTemperWornEquipment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8669,17 +8581,27 @@ Event OnConsoleTemperWornEquipment(String EventName, String sArgument, Float fAr
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  Actor aActor = self.FormFromSArgument(sArgument, 1) as Actor
-  float minHealth = self.FloatFromSArgument(sArgument, 2, 0.0)
-  float maxHealth = self.FloatFromSArgument(sArgument, 3, 0.0)
-  FormList excludeKeywordList = self.FormFromSArgument(sArgument, 4) as FormList
-  If aActor == none || excludeKeywordList == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+  Actor aActor
+  float minHealth
+  float maxHealth
+  FormList excludeKeywordList
+  If QtyPars == 3
+    aActor = ConsoleUtil.GetSelectedReference() as Actor
+    minHealth = self.FloatFromSArgument(sArgument, 1, 0.0)
+    maxHealth = self.FloatFromSArgument(sArgument, 2, 0.0)
+    excludeKeywordList = self.FormFromSArgument(sArgument, 3) as FormList
+  ElseIf QtyPars == 4
+    aActor = self.FormFromSArgument(sArgument, 1) as Actor
+    minHealth = self.FloatFromSArgument(sArgument, 2, 0.0)
+    maxHealth = self.FloatFromSArgument(sArgument, 3, 0.0)
+    excludeKeywordList = self.FormFromSArgument(sArgument, 4) as FormList
+  EndIf
+  If aActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   sztkUtil.TemperWornEquipment(aActor, minHealth, maxHealth, excludeKeywordList)
 EndEvent
-
 
 Event OnConsoleMagicEffectHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8705,7 +8627,6 @@ Event OnConsoleMagicEffectHelp(String EventName, String sArgument, Float fArgume
   PrintMessage("NoDeathDispel   	0x10000000")
   PrintMessage("============================")
 EndEvent
-
 
 Event OnConsoleRaceHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8739,10 +8660,10 @@ Event OnConsoleRaceHelp(String EventName, String sArgument, Float fArgument, For
   PrintMessage("================================================")
 EndEvent
 
-
 Event OnConsoleSetRecordFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetRecordFlag(Form akForm, int aiFlag, bool abSkipChecks = false)")
+  PrintMessage("Type the flag number in hex format (0x is not required)")
   
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("RECORD FLAG HELP")
@@ -8790,16 +8711,16 @@ Event OnConsoleSetRecordFlag(String EventName, String sArgument, Float fArgument
   EndIf
 
   Form akForm = self.FormFromSArgument(sArgument, 1)
-  Int aiFlag = self.IntFromSArgument(sArgument, 2)
+  Int aiFlag = self.IntFromSArgumentHex(sArgument, 2)
   Bool abSkipChecks = self.BoolFromSArgument(sArgument, 3, false) ; Default to false if not provided
 
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   If aiFlag < 0 || aiFlag > 27
-    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("SetRecordFlag ?") + " to check valid values.")
+    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("SetRecordFlag ?") + " to check valid values")
     Return
   EndIf
 
@@ -8808,27 +8729,27 @@ Event OnConsoleSetRecordFlag(String EventName, String sArgument, Float fArgument
     ; Perform type checks based on the flag
     If aiFlag == 3 || aiFlag == 6 || aiFlag == 9
       If !(akForm as Static == none)
-        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Static forms.")
+        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Static forms")
         Return
       EndIf
     ElseIf aiFlag == 5
       If !(akForm as Door == none)
-        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Door forms.")
+        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Door forms")
         Return
       EndIf
     ElseIf aiFlag == 7 || aiFlag == 13 || aiFlag == 16 || aiFlag == 19
       If !(akForm as Actor == none)
-        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Actor forms.")
+        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Actor forms")
         Return
       EndIf
     ElseIf aiFlag == 15
       If !(akForm as TreeObject == none)
-        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Tree forms.")
+        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Tree forms")
         Return
       EndIf
     ElseIf aiFlag == 17
       If !(akForm as Light == none)
-        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Light forms.")
+        PrintMessage("ERROR: Flag " + aiFlag + " can only be set on Light forms")
         Return
       EndIf
     EndIf
@@ -8837,7 +8758,6 @@ Event OnConsoleSetRecordFlag(String EventName, String sArgument, Float fArgument
   ; Set the record flag
   SetRecordFlag(akForm, aiFlag)
 EndEvent
-
 
 Event OnConsoleClearRecordFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8884,14 +8804,13 @@ Event OnConsoleClearRecordFlag(String EventName, String sArgument, Float fArgume
     Return
   EndIf
   Form akForm = self.FormFromSArgument(sArgument, 1)
-  Int aiFlag = self.IntFromSArgument(sArgument, 2)
+  Int aiFlag = self.IntFromSArgumentHex(sArgument, 2)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   ClearRecordFlag(akForm, aiFlag)
 EndEvent
-
 
 Event OnConsoleIsRecordFlagSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8941,15 +8860,14 @@ Event OnConsoleIsRecordFlagSet(String EventName, String sArgument, Float fArgume
     Return
   EndIf
   Form akForm = self.FormFromSArgument(sArgument, 1)
-  Int aiFlag = self.IntFromSArgument(sArgument, 2)
+  Int aiFlag = self.IntFromSArgumentHex(sArgument, 2)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   bool flagSet = IsRecordFlagSet(akForm, aiFlag)
   PrintMessage("IsRecordFlagSet: " + flagSet)
 EndEvent
-
 
 Event OnConsoleFormRecordHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -8997,7 +8915,6 @@ Event OnConsoleFormRecordHelp(String EventName, String sArgument, Float fArgumen
   PrintMessage("================================================")
 EndEvent
 
-
 Event OnConsoleGetRace(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetRace(Actor akActor)")
@@ -9009,23 +8926,22 @@ Event OnConsoleGetRace(String EventName, String sArgument, Float fArgument, Form
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   PrintMessage(self.GetFullID(akActor) + "'s ' race is: " + MiscUtil.GetActorRaceEditorID(akActor))
 EndEvent
 
-
 Event OnConsoleFormHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("FormHelp(string sFormName, int nameMatchMode = 0, int[] formTypes = none, int formTypeMatchMode = 0)")
 
-  PrintMessage("nameMatchMode: 0 = exact match, 1 = name contains sFormName.")
+  PrintMessage("nameMatchMode: 0 = exact match, 1 = name contains sFormName")
 
   PrintMessage("formTypeMatchModes:")
-  PrintMessage("1 = forms that have a type in formTypes.")
-  PrintMessage("0 = forms that do not have a type in formTypes.")
-  PrintMessage("-1 = filter is ignored completely, get all forms regardless of type that match (or contain).")
+  PrintMessage("1 = forms that have a type in formTypes")
+  PrintMessage("0 = forms that do not have a type in formTypes")
+  PrintMessage("-1 = filter is ignored completely, get all forms regardless of type that match (or contain)")
 
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
@@ -9047,7 +8963,7 @@ Event OnConsoleFormHelp(String EventName, String sArgument, Float fArgument, For
   formResults = DbSKSEFunctions.GetAllFormsWithName(sFormName, nameMatchMode, formTypes, formTypeMatchMode)
   Int i = 0
   Int L = formResults.Length
-  PrintMessage(L + " results found.")
+  PrintMessage(L + " results found")
   If L == 0
     Return
   EndIf
@@ -9061,7 +8977,6 @@ Event OnConsoleFormHelp(String EventName, String sArgument, Float fArgument, For
   PrintMessage("======================================================================")
 
 EndEvent
-
 
 Event OnConsoleGetActiveQuests(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9078,7 +8993,7 @@ Event OnConsoleGetActiveQuests(String EventName, String sArgument, Float fArgume
 
   Int i = 0
   Int L = questResults.Length
-  PrintMessage(L + " results found.")
+  PrintMessage(L + " results found")
   If L == 0
     Return
   EndIf
@@ -9090,7 +9005,6 @@ Event OnConsoleGetActiveQuests(String EventName, String sArgument, Float fArgume
   PrintMessage("======================================================================")
 
 EndEvent
-
 
 Event OnConsolePlayDebugShader(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9104,14 +9018,13 @@ Event OnConsolePlayDebugShader(String EventName, String sArgument, Float fArgume
     afRGBA[3] = self.IntFromSArgument(sArgument, 4)
 
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PO3_SKSEFunctions.PlayDebugShader(akRef, afRGBA)
   PrintMessage("Playing debug shader on " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleGetMapMarkerIconType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9192,7 +9105,6 @@ Event OnConsoleGetMapMarkerIconType(String EventName, String sArgument, Float fA
   PrintMessage("Map Marker Icon Type: " + iconType)
 EndEvent
 
-
 Event OnConsoleSetMapMarkerIconType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetMapMarkerIconType(ObjectReference MapMarker, int iconType)")
@@ -9202,12 +9114,11 @@ Event OnConsoleSetMapMarkerIconType(String EventName, String sArgument, Float fA
   ObjectReference MapMarker = self.RefFromSArgument(sArgument, 1)
   Int iconType = self.IntFromSArgument(sArgument, 2)
   If MapMarker == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
   DbSKSEFunctions.SetMapMarkerIconType(MapMarker, iconType)
 EndEvent
-
 
 Event OnConsoleGetMapMarkerName(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9220,7 +9131,6 @@ Event OnConsoleGetMapMarkerName(String EventName, String sArgument, Float fArgum
   PrintMessage("Map Marker Name: " + Name)
 EndEvent
 
-
 Event OnConsoleSetMapMarkerName(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetMapMarkerName(ObjectReference MapMarker, String Name)")
@@ -9230,12 +9140,11 @@ Event OnConsoleSetMapMarkerName(String EventName, String sArgument, Float fArgum
   ObjectReference MapMarker = self.RefFromSArgument(sArgument, 1)
   String Name = self.StringFromSArgument(sArgument, 2)
   If MapMarker == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
   DbSKSEFunctions.SetMapMarkerName(MapMarker, Name)
 EndEvent
-
 
 Event OnConsoleGetCellOrWorldSpaceOriginForRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9248,7 +9157,6 @@ Event OnConsoleGetCellOrWorldSpaceOriginForRef(String EventName, String sArgumen
   PrintMessage("Cell/World Space Origin: " + Origin)
 EndEvent
 
-
 Event OnConsoleSetCellOrWorldSpaceOriginForRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetCellOrWorldSpaceOriginForRef(ObjectReference ref, Form cellOrWorldSpace)")
@@ -9258,12 +9166,11 @@ Event OnConsoleSetCellOrWorldSpaceOriginForRef(String EventName, String sArgumen
   ObjectReference ref = self.RefFromSArgument(sArgument, 1)
   Form cellOrWorldSpace = self.FormFromSArgument(sArgument, 2)
   If ref == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
   DbSKSEFunctions.SetCellOrWorldSpaceOriginForRef(ref, cellOrWorldSpace)
 EndEvent
-
 
 Event OnConsoleGetCurrentMapMarkerRefs(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9277,7 +9184,7 @@ Event OnConsoleGetCurrentMapMarkerRefs(String EventName, String sArgument, Float
   If L > 0
     PrintMessage(L + " map markers found:")
   Else
-    PrintMessage("No map markers found.")
+    PrintMessage("No map markers found")
     Return
   EndIf
 
@@ -9286,7 +9193,6 @@ Event OnConsoleGetCurrentMapMarkerRefs(String EventName, String sArgument, Float
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleGetAllMapMarkerRefs(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9300,7 +9206,7 @@ Event OnConsoleGetAllMapMarkerRefs(String EventName, String sArgument, Float fAr
   If L > 0
     PrintMessage(L + " map markers found:")
   Else
-    PrintMessage("No map markers found.")
+    PrintMessage("No map markers found")
     Return
   EndIf
 
@@ -9309,7 +9215,6 @@ Event OnConsoleGetAllMapMarkerRefs(String EventName, String sArgument, Float fAr
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleHasNodeOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9323,13 +9228,12 @@ Event OnConsoleHasNodeOverride(String EventName, String sArgument, Float fArgume
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   bool result = NiOverride.HasNodeOverride(ref, isFemale, node, keynumber, index)
   PrintMessage("HasNodeOverride: " + result)
 EndEvent
-
 
 Event OnConsoleAddNodeOverrideFloat(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9345,13 +9249,12 @@ Event OnConsoleAddNodeOverrideFloat(String EventName, String sArgument, Float fA
   float value = self.FloatFromSArgument(sArgument, 5)
   bool persist = self.BoolFromSArgument(sArgument, 6, true)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.AddNodeOverrideFloat(ref, isFemale, node, keynumber, index, value, persist)
   PrintMessage("AddNodeOverrideFloat " + self.GetFullID(ref))
 EndEvent
-
 
 Event OnConsoleAddNodeOverrideInt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9367,13 +9270,12 @@ Event OnConsoleAddNodeOverrideInt(String EventName, String sArgument, Float fArg
   int value = self.IntFromSArgument(sArgument, 5)
   bool persist = self.BoolFromSArgument(sArgument, 6, true)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.AddNodeOverrideInt(ref, isFemale, node, keynumber, index, value, persist)
   PrintMessage("AddNodeOverrideInt " + self.GetFullID(ref))
 EndEvent
-
 
 Event OnConsoleAddNodeOverrideBool(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9389,13 +9291,12 @@ Event OnConsoleAddNodeOverrideBool(String EventName, String sArgument, Float fAr
   bool value = self.BoolFromSArgument(sArgument, 5)
   bool persist = self.BoolFromSArgument(sArgument, 6, true)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.AddNodeOverrideBool(ref, isFemale, node, keynumber, index, value, persist)
   PrintMessage("AddNodeOverrideBool " + self.GetFullID(ref))
 EndEvent
-
 
 Event OnConsoleAddNodeOverrideString(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9411,13 +9312,12 @@ Event OnConsoleAddNodeOverrideString(String EventName, String sArgument, Float f
   string value = self.StringFromSArgument(sArgument, 5)
   bool persist = self.BoolFromSArgument(sArgument, 6, true)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.AddNodeOverrideString(ref, isFemale, node, keynumber, index, value, persist)
   PrintMessage("AddNodeOverrideString " + self.GetFullID(ref))
 EndEvent
-
 
 Event OnConsoleAddNodeOverrideTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9433,13 +9333,12 @@ Event OnConsoleAddNodeOverrideTextureSet(String EventName, String sArgument, Flo
   TextureSet value = self.FormFromSArgument(sArgument, 5) as TextureSet
   bool persist = self.BoolFromSArgument(sArgument, 6, true)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.AddNodeOverrideTextureSet(ref, isFemale, node, keynumber, index, value, persist)
   PrintMessage("AddNodeOverrideTextureSet " + self.GetFullID(ref))
 EndEvent
-
 
 Event OnConsoleGetNodeOverrideFloat(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9453,13 +9352,12 @@ Event OnConsoleGetNodeOverrideFloat(String EventName, String sArgument, Float fA
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float result = NiOverride.GetNodeOverrideFloat(ref, isFemale, node, keynumber, index)
   PrintMessage("GetNodeOverrideFloat: " + result)
 EndEvent
-
 
 Event OnConsoleGetNodeOverrideInt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9473,13 +9371,12 @@ Event OnConsoleGetNodeOverrideInt(String EventName, String sArgument, Float fArg
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int result = NiOverride.GetNodeOverrideInt(ref, isFemale, node, keynumber, index)
   PrintMessage("GetNodeOverrideInt: " + result)
 EndEvent
-
 
 Event OnConsoleGetNodeOverrideBool(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9493,13 +9390,12 @@ Event OnConsoleGetNodeOverrideBool(String EventName, String sArgument, Float fAr
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   bool result = NiOverride.GetNodeOverrideBool(ref, isFemale, node, keynumber, index)
   PrintMessage("GetNodeOverrideBool: " + result)
 EndEvent
-
 
 Event OnConsoleGetNodeOverrideString(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9513,13 +9409,12 @@ Event OnConsoleGetNodeOverrideString(String EventName, String sArgument, Float f
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string result = NiOverride.GetNodeOverrideString(ref, isFemale, node, keynumber, index)
   PrintMessage("GetNodeOverrideString: " + result)
 EndEvent
-
 
 Event OnConsoleGetNodeOverrideTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9533,13 +9428,12 @@ Event OnConsoleGetNodeOverrideTextureSet(String EventName, String sArgument, Flo
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   TextureSet result = NiOverride.GetNodeOverrideTextureSet(ref, isFemale, node, keynumber, index)
   PrintMessage("GetNodeOverrideTextureSet: " + result)
 EndEvent
-
 
 Event OnConsoleGetNodePropertyFloat(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9553,13 +9447,12 @@ Event OnConsoleGetNodePropertyFloat(String EventName, String sArgument, Float fA
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float result = NiOverride.GetNodePropertyFloat(ref, firstPerson, node, keynumber, index)
   PrintMessage("GetNodePropertyFloat: " + result)
 EndEvent
-
 
 Event OnConsoleGetNodePropertyInt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9573,13 +9466,12 @@ Event OnConsoleGetNodePropertyInt(String EventName, String sArgument, Float fArg
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int result = NiOverride.GetNodePropertyInt(ref, firstPerson, node, keynumber, index)
   PrintMessage("GetNodePropertyInt: " + result)
 EndEvent
-
 
 Event OnConsoleGetNodePropertyBool(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9593,13 +9485,12 @@ Event OnConsoleGetNodePropertyBool(String EventName, String sArgument, Float fAr
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   bool result = NiOverride.GetNodePropertyBool(ref, firstPerson, node, keynumber, index)
   PrintMessage("GetNodePropertyBool: " + result)
 EndEvent
-
 
 Event OnConsoleGetNodePropertyString(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9613,13 +9504,12 @@ Event OnConsoleGetNodePropertyString(String EventName, String sArgument, Float f
   int keyNumber = self.IntFromSArgument(sArgument, 3)
   int index = self.IntFromSArgument(sArgument, 4)
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string result = NiOverride.GetNodePropertyString(ref, firstPerson, node, keynumber, index)
   PrintMessage("GetNodePropertyString: " + result)
 EndEvent
-
 
 Event OnConsoleApplyNodeOverrides(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9629,13 +9519,12 @@ Event OnConsoleApplyNodeOverrides(String EventName, String sArgument, Float fArg
   EndIf
   ObjectReference ref = ConsoleUtil.GetSelectedReference() as ObjectReference
   If ref == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.ApplyNodeOverrides(ref)
   PrintMessage("ApplyNodeOverrides " + self.GetFullID(ref))
 EndEvent
-
 
 Event OnConsoleDrawWeapon(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9647,7 +9536,6 @@ Event OnConsoleDrawWeapon(String EventName, String sArgument, Float fArgument, F
   Debug.SendAnimationEvent(akActor, "weaponDraw")
 EndEvent
 
-
 Event OnConsoleSheatheWeapon(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SheatheWeapon()")
@@ -9657,7 +9545,6 @@ Event OnConsoleSheatheWeapon(String EventName, String sArgument, Float fArgument
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Debug.SendAnimationEvent(akActor, "weaponSheathe")
 EndEvent
-
 
 Event OnConsoleIdleHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9819,12 +9706,11 @@ Event OnConsoleIdleHelp(String EventName, String sArgument, Float fArgument, For
   Endwhile
 
   if !found
-    PrintMessage("No matching help message found.")
+    PrintMessage("No matching help message found")
   endif
   PrintMessage("======================================================================")
 
 EndEvent
-
 
 Event OnConsolePlayIdle(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9835,13 +9721,12 @@ Event OnConsolePlayIdle(String EventName, String sArgument, Float fArgument, For
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   Idle akIdle = self.FormFromSArgument(sArgument, 1) as Idle
   If akActor == none || akIdle == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
   bool result = akActor.PlayIdle(akIdle)
   PrintMessage("PlayIdle: " + result)
 EndEvent
-
 
 Event OnConsolePlayIdleWithTarget(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9853,13 +9738,12 @@ Event OnConsolePlayIdleWithTarget(String EventName, String sArgument, Float fArg
   ObjectReference akTarget = self.RefFromSArgument(sArgument, 1)
   Idle akIdle = self.FormFromSArgument(sArgument, 2) as Idle
   If akActor == none || akIdle == none || akTarget == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
   bool result = akActor.PlayIdleWithTarget(akIdle, akTarget)
   PrintMessage(self.GetFullID(akActor) +  " is now playing" + self.GetFullID(akIdle) + " with " + self.GetFullID(akTarget))
 EndEvent
-
 
 Event OnConsolePlaySubGraphAnimation(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9870,13 +9754,12 @@ Event OnConsolePlaySubGraphAnimation(String EventName, String sArgument, Float f
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   string asEventName = self.StringFromSArgument(sArgument, 1)
   If akActor == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
   akActor.PlaySubGraphAnimation(asEventName)
   PrintMessage("PlaySubGraphAnimation: " + asEventName)
 EndEvent
-
 
 Event OnConsoleSetShaderType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9915,7 +9798,7 @@ Event OnConsoleSetShaderType(String EventName, String sArgument, Float fArgument
   bool abNoAlphaProperty = self.BoolFromSArgument(sArgument, 6)
 
   If akRef == none || akTemplate == none
-    PrintMessage("FATAL ERROR: Reference or Template retrieval failed.")
+    PrintMessage("FATAL ERROR: Reference or Template retrieval failed")
     Return
   EndIf
 
@@ -9923,11 +9806,10 @@ Event OnConsoleSetShaderType(String EventName, String sArgument, Float fArgument
   PrintMessage("SetShaderType applied to " + self.GetFullID(akRef) + " using template " + akTemplate)
 EndEvent
 
-
 Event OnConsoleIsScriptAttachedToForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: IsScriptAttachedToForm(Form akForm, String asScriptName)")
-  PrintMessage("Note: If asScriptName is empty, it will return if the form has any non-base scripts attached.")
+  PrintMessage("Note: If asScriptName is empty, it will return if the form has any non-base scripts attached")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -9936,14 +9818,13 @@ Event OnConsoleIsScriptAttachedToForm(String EventName, String sArgument, Float 
   String asScriptName = self.StringFromSArgument(sArgument, 2)
 
   If akForm == none
-    PrintMessage("FATAL ERROR: Form retrieval failed.")
+    PrintMessage("FATAL ERROR: Form retrieval failed")
     Return
   EndIf
 
   bool result = PO3_SKSEFunctions.IsScriptAttachedToForm(akForm, asScriptName)
   PrintMessage("IsScriptAttachedToForm: " + result)
 EndEvent
-
 
 Event OnConsoleGetScriptsAttachedToForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9960,7 +9841,7 @@ Event OnConsoleGetScriptsAttachedToForm(String EventName, String sArgument, Floa
   If L > 0
     PrintMessage(L + " scripts attached to " + self.GetFullID(akForm) + ":")
   Else
-    PrintMessage("No scripts attached to " + self.GetFullID(akForm) + ".")
+    PrintMessage("No scripts attached to " + self.GetFullID(akForm))
     Return
   EndIf
 
@@ -9969,7 +9850,6 @@ Event OnConsoleGetScriptsAttachedToForm(String EventName, String sArgument, Floa
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleRemoveMagicEffectFromSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -9984,13 +9864,12 @@ Event OnConsoleRemoveMagicEffectFromSpell(String EventName, String sArgument, Fl
   int aiDuration = self.IntFromSArgument(sArgument, 5)
   float afCost = self.FloatFromSArgument(sArgument, 6)
   If akSpell == none || akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.RemoveMagicEffectFromSpell(akSpell, akMagicEffect, afMagnitude, aiArea, aiDuration, afCost)
   PrintMessage("Removed " + self.GetFullID(akMagicEffect) + " from " + self.GetFullID(akSpell))
 EndEvent
-
 
 Event OnConsoleGetSpellType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10018,7 +9897,7 @@ Event OnConsoleGetSpellType(String EventName, String sArgument, Float fArgument,
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
 
   If akSpell == none
-    PrintMessage("FATAL ERROR: Spell retrieval failed.")
+    PrintMessage("FATAL ERROR: Spell retrieval failed")
     Return
   EndIf
 
@@ -10058,7 +9937,6 @@ Event OnConsoleGetSpellType(String EventName, String sArgument, Float fArgument,
   PrintMessage("Spell type of " + self.GetFullID(akSpell) + " is " + spellType + " (" + spellTypeName + ")")
 EndEvent
 
-
 Event OnConsoleSetSpellCastingType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetSpellCastingType(Spell akSpell, int aiType)")
@@ -10085,14 +9963,13 @@ Event OnConsoleSetSpellCastingType(String EventName, String sArgument, Float fAr
   EndIf
 
   If akSpell == none
-    PrintMessage("FATAL ERROR: Spell retrieval failed.")
+    PrintMessage("FATAL ERROR: Spell retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetSpellCastingType(akSpell, aiType)
   PrintMessage("Spell casting type of " + self.GetFullID(akSpell) + " is now " + aiType + "(" + castingTypeName + ")")
 EndEvent
-
 
 Event OnConsoleSetSpellDeliveryType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10126,7 +10003,7 @@ Event OnConsoleSetSpellDeliveryType(String EventName, String sArgument, Float fA
   EndIf
 
   If akSpell == none
-    PrintMessage("FATAL ERROR: Spell retrieval failed.")
+    PrintMessage("FATAL ERROR: Spell retrieval failed")
     Return
   EndIf
 
@@ -10134,10 +10011,25 @@ Event OnConsoleSetSpellDeliveryType(String EventName, String sArgument, Float fA
   PrintMessage("Delivery type of " + self.GetFullID(akSpell) + " is now " + aiType + "(" + deliveryTypeName + ")")
 EndEvent
 
-
 Event OnConsoleSetSpellType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetSpellType(Spell akSpell, int aiType)")
+  PrintMessage("SPELL TYPE HELP")
+  PrintMessage("=================")
+  PrintMessage("-1  None")
+  PrintMessage("0   Spell")
+  PrintMessage("1   Disease")
+  PrintMessage("2   Power")
+  PrintMessage("3   LesserPower")
+  PrintMessage("4   Ability")
+  PrintMessage("5   Poison")
+  PrintMessage("6   Enchantment")
+  PrintMessage("7   Potion")
+  PrintMessage("8   Ingredient")
+  PrintMessage("9   LeveledSpell")
+  PrintMessage("10  Addiction")
+  PrintMessage("11  Voice")
+  PrintMessage("=================")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -10146,14 +10038,13 @@ Event OnConsoleSetSpellType(String EventName, String sArgument, Float fArgument,
   int aiType = self.IntFromSArgument(sArgument, 2)
 
   If akSpell == none
-    PrintMessage("FATAL ERROR: Spell retrieval failed.")
+    PrintMessage("FATAL ERROR: Spell retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetSpellType(akSpell, aiType)
   PrintMessage("Spell type of " + self.GetFullID(akSpell) + " is now " + aiType)
 EndEvent
-
 
 Event OnConsoleSetSpellMagicEffect(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10167,14 +10058,13 @@ Event OnConsoleSetSpellMagicEffect(String EventName, String sArgument, Float fAr
   int aiIndex = self.IntFromSArgument(sArgument, 3)
 
   If akSpell == none || akMagicEffect == none
-    PrintMessage("FATAL ERROR: Spell or MagicEffect retrieval failed.")
+    PrintMessage("FATAL ERROR: Spell or MagicEffect retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetSpellMagicEffect(akSpell, akMagicEffect, aiIndex)
   PrintMessage(self.GetFullID(akSpell) + "'s magic effect was replaced with " + self.GetFullID(akMagicEffect))
 EndEvent
-
 
 Event OnConsoleGetLastPlayerActivatedRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10192,7 +10082,6 @@ Event OnConsoleGetLastPlayerActivatedRef(String EventName, String sArgument, Flo
   EndIf
 EndEvent
 
-
 Event OnConsoleGetLastPlayerMenuActivatedRef(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetLastPlayerMenuActivatedRef()")
@@ -10208,7 +10097,6 @@ Event OnConsoleGetLastPlayerMenuActivatedRef(String EventName, String sArgument,
     PrintMessage("Last player menu activated reference was " + self.GetFullID(akRef))
   EndIf
 EndEvent
-
 
 Event OnConsoleSetObjectRefFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10251,18 +10139,17 @@ Event OnConsoleSetObjectRefFlag(String EventName, String sArgument, Float fArgum
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
   Bool abTurnOn = self.BoolFromSArgument(sArgument, 3, true)
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
-  PrintMessage("This function is currently a work in progress.")
+  PrintMessage("This function is currently a work in progress")
   ; ANDR_PapyrusFunctions.SetObjectRefFlag(akRef, aiFlag, abTurnOn)
   ; If abTurnOn
-  ;   PrintMessage("Flag " + aiFlag + " for reference " + self.GetFullID(akRef) + " was turned on.")
+  ;   PrintMessage("Flag " + aiFlag + " for reference " + self.GetFullID(akRef) + " was turned on")
   ; Else
-  ;   PrintMessage("Flag " + aiFlag + " for reference " + self.GetFullID(akRef) + " was turned off.")
+  ;   PrintMessage("Flag " + aiFlag + " for reference " + self.GetFullID(akRef) + " was turned off")
   ; EndIf
 EndEvent
-
 
 Event OnConsoleGetNthOutfitPart(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10274,17 +10161,16 @@ Event OnConsoleGetNthOutfitPart(String EventName, String sArgument, Float fArgum
   int aiIndex = self.IntFromSArgument(sArgument, 2)
   
   If akOutfit == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("Part " + aiIndex + " of " + self.GetFullID(akOutfit) + " is " + self.GetFullID(akOutfit.GetNthPart(aiIndex)))
 EndEvent
 
-
 Event OnConsoleGetActorbaseHeight(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetActorbaseHeight [<Actorbase>].")
+  PrintMessage("Format: GetActorbaseHeight [<Actorbase>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -10296,17 +10182,16 @@ Event OnConsoleGetActorbaseHeight(String EventName, String sArgument, float fArg
     akActorbase = self.FormFromSArgument(sArgument, 1) as Actorbase
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   Height = akActorbase.GetHeight() ; 1 is first argument, which is second term in sArgument
-  PrintMessage("Height of " + self.GetFullID(akActorbase) + " is " + Height as String + ".")
+  PrintMessage("Height of " + self.GetFullID(akActorbase) + " is " + Height as String)
 EndEvent
-
 
 Event OnConsoleSetActorbaseHeight(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SetActorbaseHeight [<Actorbase>] <float Height>.")
+  PrintMessage("Format: SetActorbaseHeight [<Actorbase>] <float Height>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -10320,13 +10205,12 @@ Event OnConsoleSetActorbaseHeight(String EventName, String sArgument, float fArg
     Height = self.FloatFromSArgument(sArgument, 2) as float
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akActorbase.SetHeight(Height) ; 1 is first argument, which is second term in sArgument
-  PrintMessage("Height of " + self.GetFullID(akActorbase) + " set to " + Height as String + ".")
+  PrintMessage("Height of " + self.GetFullID(akActorbase) + " set to " + Height as String)
 EndEvent
-
 
 Event OnConsoleGetCurrentMusicType(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10337,7 +10221,6 @@ Event OnConsoleGetCurrentMusicType(String EventName, String sArgument, float fAr
   PrintMessage("Current music type is " + DbSKSEFunctions.GetCurrentMusicType())
 EndEvent
 
-
 Event OnConsoleGetNumberOfTracksInMusicType(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetNumberOfTracksInMusicType(MusicType akMusicType)")
@@ -10346,12 +10229,11 @@ Event OnConsoleGetNumberOfTracksInMusicType(String EventName, String sArgument, 
   EndIf
   MusicType akMusicType = FormFromSArgument(sArgument, 1) as MusicType
   If akMusicType == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   PrintMessage("Current music type is " + DbSKSEFunctions.GetNumberOfTracksInMusicType(akMusicType))
 EndEvent
-
 
 Event OnConsoleGetMusicTypeTrackIndex(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10361,12 +10243,11 @@ Event OnConsoleGetMusicTypeTrackIndex(String EventName, String sArgument, float 
   EndIf
   MusicType akMusicType = FormFromSArgument(sArgument, 1) as MusicType
   If akMusicType == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   PrintMessage("Current music type is " + DbSKSEFunctions.GetMusicTypeTrackIndex(akMusicType))
 EndEvent
-
 
 Event OnConsoleSetMusicTypeTrackIndex(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10376,16 +10257,15 @@ Event OnConsoleSetMusicTypeTrackIndex(String EventName, String sArgument, float 
   EndIf
   MusicType akMusicType = FormFromSArgument(sArgument, 1) as MusicType
   If akMusicType == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   int aiIndex = IntFromSArgument(sArgument, 1)
   PrintMessage("Current music type track index is " + DbSKSEFunctions.GetMusicTypeTrackIndex(akMusicType))
-  PrintMessage("Attempting to update...")
+  PrintMessage("Attempting to update..")
   DbSKSEFunctions.SetMusicTypeTrackIndex(akMusicType, aiIndex)
   PrintMessage("New music type track index  is " + DbSKSEFunctions.GetMusicTypeTrackIndex(akMusicType))
 EndEvent
-
 
 Event OnConsoleGetMusicTypePriority(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10395,12 +10275,11 @@ Event OnConsoleGetMusicTypePriority(String EventName, String sArgument, float fA
   EndIf
   MusicType akMusicType = FormFromSArgument(sArgument, 1) as MusicType
   If akMusicType == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   PrintMessage("Current music type is " + DbSKSEFunctions.GetMusicTypePriority(akMusicType))
 EndEvent
-
 
 Event OnConsoleSetMusicTypePriority(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10410,16 +10289,15 @@ Event OnConsoleSetMusicTypePriority(String EventName, String sArgument, float fA
   EndIf
   MusicType akMusicType = FormFromSArgument(sArgument, 1) as MusicType
   If akMusicType == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   int aiIndex = IntFromSArgument(sArgument, 1)
   PrintMessage("Current music type priority is " + DbSKSEFunctions.GetMusicTypePriority(akMusicType))
-  PrintMessage("Attempting to update...")
+  PrintMessage("Attempting to update..")
   DbSKSEFunctions.SetMusicTypePriority(akMusicType, aiIndex)
   PrintMessage("New music type priority is " + DbSKSEFunctions.GetMusicTypePriority(akMusicType))
 EndEvent
-
 
 Event OnConsoleGetMusicTypeStatus(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10429,7 +10307,7 @@ Event OnConsoleGetMusicTypeStatus(String EventName, String sArgument, float fArg
   EndIf
   MusicType akMusicType = FormFromSArgument(sArgument, 1) as MusicType
   If akMusicType == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   int iMTStatus = DbSKSEFunctions.GetMusicTypeStatus(akMusicType)
@@ -10450,7 +10328,6 @@ Event OnConsoleGetMusicTypeStatus(String EventName, String sArgument, float fArg
   PrintMessage("Current music type is " + iMTStatus + " ( " + sMTStatus + ")")
 EndEvent
 
-
 Event OnConsoleDispelEffect(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: DispelMagicEffectOnRef(ObjectReference akRef, MagicEffect akMagicEffect, Form akMagicSource = none)")
@@ -10470,12 +10347,11 @@ Event OnConsoleDispelEffect(String EventName, String sArgument, float fArgument,
     akMagicSource = FormFromSArgument(sArgument, 3)
   EndIf
   If akRef == none || akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   DbSKSEFunctions.DispelMagicEffectOnRef(akRef, akMagicEffect, akMagicSource)
 EndEvent
-
 
 Event OnConsoleBlendColorWithSkinTone(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10526,17 +10402,16 @@ Event OnConsoleBlendColorWithSkinTone(String EventName, String sArgument, float 
     afOpacity = FloatFromSArgument(sArgument, 5, 1.0)
   EndIf
   If akActor == none || akColor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   PO3_SKSEFunctions.BlendColorWithSkinTone(akActor, akColor, aiBlendMode, abAutoLuminance, afOpacity)
 EndEvent
 
-
 Event OnConsoleGetEquippedArmorInSlot(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetEquippedArmorInSlot(Actor akActor, int aiSlot)")
-  PrintMessage("Leaving aiSlot empty or setting it to 0 will print all equipped armor in slots 30-60.")
+  PrintMessage("Leaving aiSlot empty or setting it to 0 will print all equipped armor in slots 30-60")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -10544,7 +10419,7 @@ Event OnConsoleGetEquippedArmorInSlot(String EventName, String sArgument, Float 
   Armor equippedArmor
   int aiSlot = self.IntFromSArgument(sArgument, 1)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   If aiSlot == 0
@@ -10568,7 +10443,6 @@ Event OnConsoleGetEquippedArmorInSlot(String EventName, String sArgument, Float 
   EndIf
 EndEvent
 
-
 Event OnConsoleSetHeadpartAlpha(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetHeadpartAlpha(Actor akActor, int aiPartType, float afAlpha)") 
@@ -10591,7 +10465,7 @@ Event OnConsoleSetHeadpartAlpha(String EventName, String sArgument, Float fArgum
   float afAlpha = self.FloatFromSArgument(sArgument, 2)
 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -10599,6 +10473,23 @@ Event OnConsoleSetHeadpartAlpha(String EventName, String sArgument, Float fArgum
   PrintMessage("Set skin alpha of headpart type #" + aiPartType + " from " + self.GetFullID(akActor) + " to opacity " + afAlpha)
 EndEvent
 
+Event OnConsoleGetActorRefraction(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetActorRefraction(Actor akActor)") 
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  
+  Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
+
+  If akActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+
+  float Refraction = PO3_SKSEFunctions.GetActorRefraction(akActor)
+  PrintMessage("Refraction of " + self.GetFullID(akActor) + " is " + Refraction)
+EndEvent
 
 Event OnConsoleSetActorRefraction(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10611,14 +10502,13 @@ Event OnConsoleSetActorRefraction(String EventName, String sArgument, Float fArg
   float afRefraction = self.FloatFromSArgument(sArgument, 1)
 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetActorRefraction(akActor, afRefraction)
   PrintMessage("Set refraction of " + self.GetFullID(akActor) + " to " + afRefraction)
 EndEvent
-
 
 Event OnConsoleRevertSkinOverlays(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10631,13 +10521,12 @@ Event OnConsoleRevertSkinOverlays(String EventName, String sArgument, Float fArg
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.RevertOverlays(akActor)
   PrintMessage("Reverted skin overlays of " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleRevertHeadOverlays(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10650,13 +10539,12 @@ Event OnConsoleRevertHeadOverlays(String EventName, String sArgument, Float fArg
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.RevertHeadOverlays(akActor)
   PrintMessage("Reverted head overlays of " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleGetEquippedShout(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10669,12 +10557,11 @@ Event OnConsoleGetEquippedShout(String EventName, String sArgument, Float fArgum
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   PrintMessage(self.GetFullID(akActor) + "'s ' equipped shout is " + akActor.GetEquippedShout())
 EndEvent
-
 
 Event OnConsoleGetEquippedShield(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10687,12 +10574,11 @@ Event OnConsoleGetEquippedShield(String EventName, String sArgument, Float fArgu
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   PrintMessage(self.GetFullID(akActor) + "'s ' equipped shout is " + self.GetFullID(akActor.GetEquippedShield()))
 EndEvent
-
 
 Event OnConsoleGetEquippedWeapon(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10707,7 +10593,7 @@ Event OnConsoleGetEquippedWeapon(String EventName, String sArgument, Float fArgu
     abLeftHand = self.BoolFromSArgument(sArgument, 2)
   EndIf 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   string handText = "right hand"
@@ -10716,7 +10602,6 @@ Event OnConsoleGetEquippedWeapon(String EventName, String sArgument, Float fArgu
   EndIf
   PrintMessage(self.GetFullID(akActor) + "'s ' equipped " + handText + " weapon is " + self.GetFullID(akActor.GetEquippedWeapon(abLeftHand)))
 EndEvent
-
 
 Event OnConsoleGetEquippedSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10739,7 +10624,7 @@ Event OnConsoleGetEquippedSpell(String EventName, String sArgument, Float fArgum
     aiSource = self.IntFromSArgument(sArgument, 2)
   EndIf 
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   string handText
@@ -10754,7 +10639,6 @@ Event OnConsoleGetEquippedSpell(String EventName, String sArgument, Float fArgum
   EndIf
   PrintMessage(self.GetFullID(akActor) + "'s ' equipped " + handText + " spell is " + self.GetFullID(akActor.GetEquippedSpell(aiSource)))
 EndEvent
-
 
 Event OnConsoleGetNthTexturePath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10771,13 +10655,12 @@ Event OnConsoleGetNthTexturePath(String EventName, String sArgument, Float fArgu
     aiN = self.IntFromSArgument(sArgument, 2)
   EndIf
   If akTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("Texture " + aiN + " of " + self.GetFullID(akTXST) + " is " + akTXST.GetNthTexturePath(aiN))
 EndEvent
-
 
 Event OnConsoleSetNthTexturePath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10789,7 +10672,7 @@ Event OnConsoleSetNthTexturePath(String EventName, String sArgument, Float fArgu
   int aiN = self.IntFromSArgument(sArgument, 2)
   string asPath = DbMiscFunctions.RemovePrefixFromString(sArgument, self.StringFromSArgument(sArgument, 0) + " " +  self.StringFromSArgument(sArgument, 1) + " " + self.StringFromSArgument(sArgument, 2) + " ")
   If akTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -10798,7 +10681,6 @@ Event OnConsoleSetNthTexturePath(String EventName, String sArgument, Float fArgu
   
   PrintMessage("Texture " + aiN + " of " + self.GetFullID(akTXST) + " is now " + akTXST.GetNthTexturePath(aiN))
 EndEvent
-
 
 Event OnConsoleQueueNiNodeUpdate(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10811,13 +10693,16 @@ Event OnConsoleQueueNiNodeUpdate(String EventName, String sArgument, Float fArgu
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  If akActor.IsOnMount()
+    PrintMessage("FATAL ERROR: Actor is on mount. Cannot use QueueNiNodeUpdate.")
     Return
   EndIf
   akActor.QueueNiNodeUpdate()
   PrintMessage("Queued NiNodeUpdate of " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleGetABFaceTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10827,14 +10712,13 @@ Event OnConsoleGetABFaceTextureSet(String EventName, String sArgument, Float fAr
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   TextureSet akTXST =  akActorbase.GetFaceTextureSet()
   PrintMessage("Face texture of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akTXST))
 EndEvent
-
 
 Event OnConsoleSetABFaceTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10845,7 +10729,7 @@ Event OnConsoleSetABFaceTextureSet(String EventName, String sArgument, Float fAr
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   TextureSet akNewTXST = self.FormFromSArgument(sArgument, 1) as TextureSet
   If akActorbase == none || akNewTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Face texture of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akActorbase.GetFaceTextureSet()))
@@ -10858,7 +10742,6 @@ Event OnConsoleSetABFaceTextureSet(String EventName, String sArgument, Float fAr
   EndIf
 EndEvent
 
-
 Event OnConsoleGetActorbaseSkin(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetActorbaseSkin([Actorbase akActorbase = GetSelectedReference().GetActorBase()])")
@@ -10867,14 +10750,13 @@ Event OnConsoleGetActorbaseSkin(String EventName, String sArgument, Float fArgum
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   Armor akSkin = akActorbase.GetSkin()
   PrintMessage("Skin of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akSkin))
 EndEvent
-
 
 Event OnConsoleSetActorbaseSkin(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10885,7 +10767,7 @@ Event OnConsoleSetActorbaseSkin(String EventName, String sArgument, Float fArgum
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   Armor akNewSkin = self.FormFromSArgument(sArgument, 1) as Armor
   If akActorbase == none || akNewSkin == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Skin of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akActorbase.GetSkin()))
@@ -10898,7 +10780,6 @@ Event OnConsoleSetActorbaseSkin(String EventName, String sArgument, Float fArgum
   EndIf
 EndEvent
 
-
 Event OnConsoleGetActorbaseSkinFar(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetActorbaseSkinFar([Actorbase akActorbase = GetSelectedReference().GetActorBase()])")
@@ -10907,14 +10788,13 @@ Event OnConsoleGetActorbaseSkinFar(String EventName, String sArgument, Float fAr
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   Armor akSkinFar = akActorbase.GetSkinFar()
   PrintMessage("Far skin of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akSkinFar))
 EndEvent
-
 
 Event OnConsoleSetActorbaseSkinFar(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10925,7 +10805,7 @@ Event OnConsoleSetActorbaseSkinFar(String EventName, String sArgument, Float fAr
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   Armor akNewSkinFar = self.FormFromSArgument(sArgument, 1) as Armor
   If akActorbase == none || akNewSkinFar == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Far skin of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akActorbase.GetSkinFar()))
@@ -10938,7 +10818,6 @@ Event OnConsoleSetActorbaseSkinFar(String EventName, String sArgument, Float fAr
   EndIf
 EndEvent
 
-
 Event OnConsoleGetSpellCastTime(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetSpellCastTime(Spell akSpell)")
@@ -10947,16 +10826,15 @@ Event OnConsoleGetSpellCastTime(String EventName, String sArgument, Float fArgum
   EndIf
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Cast time of " + self.GetFullID(akSpell) + " is " + akSpell.GetCastTime())
 EndEvent
 
-
 Event OnConsoleGetSpellMagicEffects(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetSpellMagicEffects(Spell akSpell).")
+  PrintMessage("Format: GetSpellMagicEffects(Spell akSpell)")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -10965,9 +10843,9 @@ Event OnConsoleGetSpellMagicEffects(String EventName, String sArgument, Float fA
   int i = 0
   int L = result.Length
   If L > 0
-    PrintMessage("Found " + L + " magic effects.")
+    PrintMessage("Found " + L + " magic effects")
   Else
-    PrintMessage("No magic effects found.")
+    PrintMessage("No magic effects found")
     Return
   EndIf
   While i < L
@@ -10975,7 +10853,6 @@ Event OnConsoleGetSpellMagicEffects(String EventName, String sArgument, Float fA
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleGetSpellEquipType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -10985,12 +10862,11 @@ Event OnConsoleGetSpellEquipType(String EventName, String sArgument, Float fArgu
   EndIf
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Equip type for spell " + self.GetFullID(akSpell) + " is " + akSpell.GetEquipType())
 EndEvent
-
 
 Event OnConsoleSetSpellEquipType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11001,14 +10877,13 @@ Event OnConsoleSetSpellEquipType(String EventName, String sArgument, Float fArgu
   Spell akSpell = self.FormFromSArgument(sArgument, 1) as Spell
   EquipSlot akType = self.FormFromSArgument(sArgument, 2) as EquipSlot
   If akSpell == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("Equip type for spell " + self.GetFullID(akSpell) + " was " + akSpell.GetEquipType())
   akSpell.SetEquipType(akType)
   PrintMessage("Equip type for spell " + self.GetFullID(akSpell) + " is now " + akSpell.GetEquipType())
 EndEvent
-
 
 Event OnConsoleCopySpellEquipType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11019,7 +10894,7 @@ Event OnConsoleCopySpellEquipType(String EventName, String sArgument, Float fArg
   Spell akSource = self.FormFromSArgument(sArgument, 1) as Spell
   Spell akTarget = self.FormFromSArgument(sArgument, 2) as Spell
   If akSource == none || akTarget == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   EquipSlot akType = akSource.GetEquipType()
@@ -11027,7 +10902,6 @@ Event OnConsoleCopySpellEquipType(String EventName, String sArgument, Float fArg
   akTarget.SetEquipType(akType)
   PrintMessage("Equip type for spell " + self.GetFullID(akTarget) + " is now " + akTarget.GetEquipType())
 EndEvent
-
 
 Event OnConsoleCombineSpells(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11041,7 +10915,7 @@ Event OnConsoleCombineSpells(String EventName, String sArgument, Float fArgument
   String asName = self.StringFromSArgument(sArgument, 3)
 
   If akBase == none || spells[0] == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -11054,7 +10928,6 @@ Event OnConsoleCombineSpells(String EventName, String sArgument, Float fArgument
   EndIf
 EndEvent
 
-
 Event OnConsoleRemoveFormFromFormlist(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: RemoveFormFromFormlist(Formlist akFormList, Form akForm)")
@@ -11065,25 +10938,24 @@ Event OnConsoleRemoveFormFromFormlist(String EventName, String sArgument, Float 
   Form akForm = self.FormFromSArgument(sArgument, 2) as Form
 
   If akFormList == none || akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   If akFormList.HasForm(akForm)
-    PrintMessage("Form detected. Attempting to remove it...")
+    PrintMessage("Form detected. Attempting to remove it..")
     akFormList.RemoveAddedForm(akForm)
     If akFormList.HasForm(akForm)
-      PrintMessage("Form still detected. This function can only remove forms that were added by a script.")
-      PrintMessage("Try to remove the form using Creation Kit or SSEEdit.")
+      PrintMessage("Form still detected. This function can only remove forms that were added by a script")
+      PrintMessage("Try to remove the form using Creation Kit or SSEEdit")
     Else
-      PrintMessage("Form removed successfully.")
+      PrintMessage("Form removed successfully")
     EndIf
   Else
-    PrintMessage("Formlist already doesn`t contain the form.")
+    PrintMessage("Formlist already doesn`t contain the form")
   EndIf
     
 EndEvent
-
 
 Event OnConsoleGetMagicEffectSound(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11104,14 +10976,13 @@ Event OnConsoleGetMagicEffectSound(String EventName, String sArgument, Float fAr
   int aiType = self.IntFromSArgument(sArgument, 2)
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("Sound " + aiType + " of " + self.GetFullID(akMagicEffect) + " is " + self.GetFullID(PO3_SKSEFunctions.GetMagicEffectSound(akMagicEffect, aiType)))
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectSound(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11133,7 +11004,7 @@ Event OnConsoleSetMagicEffectSound(String EventName, String sArgument, Float fAr
   int aiType = self.IntFromSArgument(sArgument, 3)
 
   If akMagicEffect == none || akSoundDescriptor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -11144,7 +11015,6 @@ Event OnConsoleSetMagicEffectSound(String EventName, String sArgument, Float fAr
     
 EndEvent
 
-
 Event OnConsoleGetOutfitNumParts(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetOutfitNumParts(Outfit akOutfit)")
@@ -11153,13 +11023,12 @@ Event OnConsoleGetOutfitNumParts(String EventName, String sArgument, Float fArgu
   EndIf
   Outfit akOutfit = self.FormFromSArgument(sArgument, 1) as Outfit
   If akOutfit == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int numParts = akOutfit.GetNumParts()
   PrintMessage("Number of parts in outfit " + self.GetFullID(akOutfit) + " is " + numParts)
 EndEvent
-
 
 Event OnConsoleGetOutfitNthPart(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11170,13 +11039,12 @@ Event OnConsoleGetOutfitNthPart(String EventName, String sArgument, Float fArgum
   Outfit akOutfit = self.FormFromSArgument(sArgument, 1) as Outfit
   int aiIndex = self.IntFromSArgument(sArgument, 2)
   If akOutfit == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Form nthPart = akOutfit.GetNthPart(aiIndex)
   PrintMessage("Part " + aiIndex + " of outfit " + self.GetFullID(akOutfit) + " is " + self.GetFullID(nthPart))
 EndEvent
-
 
 Event OnConsoleAddFormToLeveledItem(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11189,13 +11057,12 @@ Event OnConsoleAddFormToLeveledItem(String EventName, String sArgument, Float fA
   int aiLevel = self.IntFromSArgument(sArgument, 3)
   int aiCount = self.IntFromSArgument(sArgument, 4)
   If akLeveledItem == none || apForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akLeveledItem.AddForm(apForm, aiLevel, aiCount)
   PrintMessage("Added form " + self.GetFullID(apForm) + " to leveled item " + self.GetFullID(akLeveledItem) + " at level " + aiLevel + " with count " + aiCount)
 EndEvent
-
 
 Event OnConsoleRevertLeveledItem(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11205,13 +11072,12 @@ Event OnConsoleRevertLeveledItem(String EventName, String sArgument, Float fArgu
   EndIf
   LeveledItem akLeveledItem = self.FormFromSArgument(sArgument, 1) as LeveledItem
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akLeveledItem.Revert()
   PrintMessage("Reverted leveled item " + self.GetFullID(akLeveledItem))
 EndEvent
-
 
 Event OnConsoleGetLeveledItemChanceNone(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11221,13 +11087,12 @@ Event OnConsoleGetLeveledItemChanceNone(String EventName, String sArgument, Floa
   EndIf
   LeveledItem akLeveledItem = self.FormFromSArgument(sArgument, 1) as LeveledItem
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int chanceNone = akLeveledItem.GetChanceNone()
   PrintMessage("Chance none for leveled item " + self.GetFullID(akLeveledItem) + " is " + chanceNone)
 EndEvent
-
 
 Event OnConsoleSetLeveledItemChanceNone(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11238,13 +11103,12 @@ Event OnConsoleSetLeveledItemChanceNone(String EventName, String sArgument, Floa
   LeveledItem akLeveledItem = self.FormFromSArgument(sArgument, 1) as LeveledItem
   int chance = self.IntFromSArgument(sArgument, 2)
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akLeveledItem.SetChanceNone(chance)
   PrintMessage("Set chance none for leveled item " + self.GetFullID(akLeveledItem) + " to " + chance)
 EndEvent
-
 
 Event OnConsoleGetLeveledItemChanceGlobal(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11254,13 +11118,12 @@ Event OnConsoleGetLeveledItemChanceGlobal(String EventName, String sArgument, Fl
   EndIf
   LeveledItem akLeveledItem = self.FormFromSArgument(sArgument, 1) as LeveledItem
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   GlobalVariable chanceGlobal = akLeveledItem.GetChanceGlobal()
   PrintMessage("Chance global for leveled item " + self.GetFullID(akLeveledItem) + " is " + self.GetFullID(chanceGlobal))
 EndEvent
-
 
 Event OnConsoleSetLeveledItemChanceGlobal(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11271,13 +11134,12 @@ Event OnConsoleSetLeveledItemChanceGlobal(String EventName, String sArgument, Fl
   LeveledItem akLeveledItem = self.FormFromSArgument(sArgument, 1) as LeveledItem
   GlobalVariable glob = self.FormFromSArgument(sArgument, 2) as GlobalVariable
   If akLeveledItem == none || glob == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akLeveledItem.SetChanceGlobal(glob)
   PrintMessage("Set chance global for leveled item " + self.GetFullID(akLeveledItem) + " to " + self.GetFullID(glob))
 EndEvent
-
 
 Event OnConsoleGetLeveledItemNumForms(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11287,13 +11149,12 @@ Event OnConsoleGetLeveledItemNumForms(String EventName, String sArgument, Float 
   EndIf
   LeveledItem akLeveledItem = self.FormFromSArgument(sArgument, 1) as LeveledItem
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int numForms = akLeveledItem.GetNumForms()
   PrintMessage("Number of forms in leveled item " + self.GetFullID(akLeveledItem) + " is " + numForms)
 EndEvent
-
 
 Event OnConsoleGetLeveledItemNthForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11304,13 +11165,12 @@ Event OnConsoleGetLeveledItemNthForm(String EventName, String sArgument, Float f
   LeveledItem akLeveledItem = self.FormFromSArgument(sArgument, 1) as LeveledItem
   int aiIndex = self.IntFromSArgument(sArgument, 2)
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Form nthForm = akLeveledItem.GetNthForm(aiIndex)
   PrintMessage("Form " + aiIndex + " in leveled item " + self.GetFullID(akLeveledItem) + " is " + self.GetFullID(nthForm))
 EndEvent
-
 
 Event OnConsoleGetLeveledItemthLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11321,13 +11181,12 @@ Event OnConsoleGetLeveledItemthLevel(String EventName, String sArgument, Float f
   LeveledItem akLeveledItem = self.FormFromSArgument(sArgument, 1) as LeveledItem
   int aiIndex = self.IntFromSArgument(sArgument, 2)
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int nthLevel = akLeveledItem.GetNthLevel(aiIndex)
   PrintMessage("Level " + aiIndex + " in leveled item " + self.GetFullID(akLeveledItem) + " is " + nthLevel)
 EndEvent
-
 
 Event OnConsoleSetLeveledItemNthLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11339,13 +11198,12 @@ Event OnConsoleSetLeveledItemNthLevel(String EventName, String sArgument, Float 
   int aiIndex = self.IntFromSArgument(sArgument, 2)
   int level = self.IntFromSArgument(sArgument, 3)
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akLeveledItem.SetNthLevel(aiIndex, level)
   PrintMessage("Set level " + aiIndex + " in leveled item " + self.GetFullID(akLeveledItem) + " to " + level)
 EndEvent
-
 
 Event OnConsoleGetLeveledItemNthCount(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11356,13 +11214,12 @@ Event OnConsoleGetLeveledItemNthCount(String EventName, String sArgument, Float 
   LeveledItem akLeveledItem = self.FormFromSArgument(sArgument, 1) as LeveledItem
   int aiIndex = self.IntFromSArgument(sArgument, 2)
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int nthCount = akLeveledItem.GetNthCount(aiIndex)
   PrintMessage("Count " + aiIndex + " in leveled item " + self.GetFullID(akLeveledItem) + " is " + nthCount)
 EndEvent
-
 
 Event OnConsoleSetLeveledItemNthCount(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11374,13 +11231,12 @@ Event OnConsoleSetLeveledItemNthCount(String EventName, String sArgument, Float 
   int aiIndex = self.IntFromSArgument(sArgument, 2)
   int count = self.IntFromSArgument(sArgument, 3)
   If akLeveledItem == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akLeveledItem.SetNthCount(aiIndex, count)
   PrintMessage("Set count " + aiIndex + " in leveled item " + self.GetFullID(akLeveledItem) + " to " + count)
 EndEvent
-
 
 Event OnConsolePlaceDoor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11391,7 +11247,7 @@ Event OnConsolePlaceDoor(String EventName, String sArgument, Float fArgument, Fo
   Door akDoor = self.FormFromSArgument(sArgument, 1) as Door
   ObjectReference akDestination = self.RefFromSArgument(sArgument, 2)
   If akDoor == none || akDestination == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ; Place the door in front of the player
@@ -11409,10 +11265,9 @@ Event OnConsolePlaceDoor(String EventName, String sArgument, Float fArgument, Fo
     doorScript.HiddenLoadDoor = akDestination
     PrintMessage("Successfully placed door " + self.GetFullID(placedDoor) + " and set its destination to " + self.GetFullID(akDestination))
   Else
-    PrintMessage("Failed to attach VMAG_SetDoorDestination script to the door.")
+    PrintMessage("Failed to attach VMAG_SetDoorDestination script to the door")
   EndIf
 EndEvent
-
 
 Event OnConsoleGetWorldModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11422,13 +11277,12 @@ Event OnConsoleGetWorldModelPath(String EventName, String sArgument, Float fArgu
   EndIf
   Form akForm = self.FormFromSArgument(sArgument, 1)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string Result = akForm.GetWorldModelPath()
   PrintMessage("World model path of" + self.GetFullID(akForm) + " is " + Result)
 EndEvent
-
 
 Event OnConsoleSetWorldModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11439,13 +11293,12 @@ Event OnConsoleSetWorldModelPath(String EventName, String sArgument, Float fArgu
   Form akForm = self.FormFromSArgument(sArgument, 1)
   string asPath = DbMiscFunctions.RemovePrefixFromString(sArgument, self.StringFromSArgument(sArgument, 0) + " " + self.StringFromSArgument(sArgument, 1) + " ")
   If akForm == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akForm.SetWorldModelPath(asPath)
   PrintMessage("Set world model path of " + self.GetFullID(akForm) + " to " + asPath)
 EndEvent
-
 
 Event OnConsoleCopyWorldModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11456,7 +11309,7 @@ Event OnConsoleCopyWorldModelPath(String EventName, String sArgument, Float fArg
   Form akSource = self.FormFromSArgument(sArgument, 1)
   Form akTarget = self.FormFromSArgument(sArgument, 2)
   If akSource == none || akTarget == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   String sPath = akSource.GetWorldModelPath()
@@ -11464,36 +11317,33 @@ Event OnConsoleCopyWorldModelPath(String EventName, String sArgument, Float fArg
   PrintMessage("Set world model path of " + self.GetFullID(akTarget) + " to " + sPath)
 EndEvent
 
-
 Event OnConsoleGetArmorEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetArmorEnchantment [<Armor akArmor>].")
+  PrintMessage("Format: GetArmorEnchantment [<Armor akArmor>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   Endif
-  PrintMessage("Enchantment of object " + self.GetFullID(akArmor) + " is " + self.GetFullID(akArmor.GetEnchantment()) + ".")
+  PrintMessage("Enchantment of object " + self.GetFullID(akArmor) + " is " + self.GetFullID(akArmor.GetEnchantment()))
 EndEvent
-
 
 Event OnConsoleGetWeaponEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetWeaponEnchantment [<Weapon akWeapon>].")
+  PrintMessage("Format: GetWeaponEnchantment [<Weapon akWeapon>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
   Weapon akWeapon = self.FormFromSArgument(sArgument, 1) as Weapon
   If akWeapon == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   Endif
-  PrintMessage("Enchantment of object " + self.GetFullID(akWeapon) + " is " + self.GetFullID(akWeapon.GetEnchantment()) + ".")
+  PrintMessage("Enchantment of object " + self.GetFullID(akWeapon) + " is " + self.GetFullID(akWeapon.GetEnchantment()))
 EndEvent
-
 
 Event OnConsoleHasSkinOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11501,7 +11351,7 @@ Event OnConsoleHasSkinOverride(String EventName, String sArgument, Float fArgume
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: HasSkinOverride([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -11529,7 +11379,7 @@ Event OnConsoleHasSkinOverride(String EventName, String sArgument, Float fArgume
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -11547,14 +11397,13 @@ Event OnConsoleHasSkinOverride(String EventName, String sArgument, Float fArgume
   PrintMessage("- Index: " + index)
 EndEvent
 
-
 Event OnConsoleAddSkinOverrideFloat(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: AddSkinOverrideFloat([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index, float value, bool persist)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -11588,7 +11437,7 @@ Event OnConsoleAddSkinOverrideFloat(String EventName, String sArgument, Float fA
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -11610,12 +11459,11 @@ Event OnConsoleAddSkinOverrideFloat(String EventName, String sArgument, Float fA
     PrintMessage("- Value: " + value)
     PrintMessage("- Persist: " + IfElse(persist, "Yes", "No"))
   Else
-    PrintMessage("WARNING: Float override may not have been applied successfully.")
+    PrintMessage("WARNING: Float override may not have been applied successfully")
     PrintMessage("Expected Value: " + value)
     PrintMessage("Applied Value: " + appliedValue)
   EndIf
 EndEvent
-
 
 Event OnConsoleGetSkinOverrideFloat(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11623,7 +11471,7 @@ Event OnConsoleGetSkinOverrideFloat(String EventName, String sArgument, Float fA
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: GetSkinOverrideFloat([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -11651,7 +11499,7 @@ Event OnConsoleGetSkinOverrideFloat(String EventName, String sArgument, Float fA
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -11669,14 +11517,13 @@ Event OnConsoleGetSkinOverrideFloat(String EventName, String sArgument, Float fA
   PrintMessage("- Index: " + index)
 EndEvent
 
-
 Event OnConsoleGetSkinPropertyFloat(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: GetSkinPropertyFloat([ObjectReference akActor = GetSelectedReference()], bool firstPerson, int slotMask, int key, int index)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -11701,7 +11548,7 @@ Event OnConsoleGetSkinPropertyFloat(String EventName, String sArgument, Float fA
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -11718,14 +11565,13 @@ Event OnConsoleGetSkinPropertyFloat(String EventName, String sArgument, Float fA
   PrintMessage("- Index: " + index)
 EndEvent
 
-
 Event OnConsoleAddSkinOverrideInt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: AddSkinOverrideInt([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index, int value, bool persist)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -11759,7 +11605,7 @@ Event OnConsoleAddSkinOverrideInt(String EventName, String sArgument, Float fArg
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -11781,12 +11627,11 @@ Event OnConsoleAddSkinOverrideInt(String EventName, String sArgument, Float fArg
     PrintMessage("- Value: " + value)
     PrintMessage("- Persist: " + IfElse(persist, "Yes", "No"))
   Else
-    PrintMessage("WARNING: Integer override may not have been applied successfully.")
+    PrintMessage("WARNING: Integer override may not have been applied successfully")
     PrintMessage("Expected Value: " + value)
     PrintMessage("Applied Value: " + appliedValue)
   EndIf
 EndEvent
-
 
 Event OnConsoleAddSkinOverrideBool(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11794,7 +11639,7 @@ Event OnConsoleAddSkinOverrideBool(String EventName, String sArgument, Float fAr
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: AddSkinOverrideBool([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index, bool value, bool persist)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -11828,7 +11673,7 @@ Event OnConsoleAddSkinOverrideBool(String EventName, String sArgument, Float fAr
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -11850,12 +11695,11 @@ Event OnConsoleAddSkinOverrideBool(String EventName, String sArgument, Float fAr
     PrintMessage("- Value: " + IfElse(value, "True", "False"))
     PrintMessage("- Persist: " + IfElse(persist, "Yes", "No"))
   Else
-    PrintMessage("WARNING: Boolean override may not have been applied successfully.")
+    PrintMessage("WARNING: Boolean override may not have been applied successfully")
     PrintMessage("Expected Value: " + IfElse(value, "True", "False"))
     PrintMessage("Applied Value: " + IfElse(appliedValue, "True", "False"))
   EndIf
 EndEvent
-
 
 Event OnConsoleAddSkinOverrideString(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11863,7 +11707,7 @@ Event OnConsoleAddSkinOverrideString(String EventName, String sArgument, Float f
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: AddSkinOverrideString([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index, string value, bool persist)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -11897,7 +11741,7 @@ Event OnConsoleAddSkinOverrideString(String EventName, String sArgument, Float f
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -11919,12 +11763,11 @@ Event OnConsoleAddSkinOverrideString(String EventName, String sArgument, Float f
     PrintMessage("- Value: " + value)
     PrintMessage("- Persist: " + IfElse(persist, "Yes", "No"))
   Else
-    PrintMessage("WARNING: String override may not have been applied successfully.")
+    PrintMessage("WARNING: String override may not have been applied successfully")
     PrintMessage("Expected Value: " + value)
     PrintMessage("Applied Value: " + appliedValue)
   EndIf
 EndEvent
-
 
 Event OnConsoleGetSkinOverrideInt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -11932,7 +11775,7 @@ Event OnConsoleGetSkinOverrideInt(String EventName, String sArgument, Float fArg
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: GetSkinOverrideInt([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -11960,7 +11803,7 @@ Event OnConsoleGetSkinOverrideInt(String EventName, String sArgument, Float fArg
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -11978,14 +11821,13 @@ Event OnConsoleGetSkinOverrideInt(String EventName, String sArgument, Float fArg
   PrintMessage("- Index: " + index)
 EndEvent
 
-
 Event OnConsoleGetSkinOverrideBool(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: GetSkinOverrideBool([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -12013,7 +11855,7 @@ Event OnConsoleGetSkinOverrideBool(String EventName, String sArgument, Float fAr
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -12031,14 +11873,13 @@ Event OnConsoleGetSkinOverrideBool(String EventName, String sArgument, Float fAr
   PrintMessage("- Index: " + index)
 EndEvent
 
-
 Event OnConsoleGetSkinOverrideString(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: GetSkinOverrideString([ObjectReference akActor = GetSelectedReference()], bool isFemale, bool firstPerson, int slotMask, int key, int index)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -12066,7 +11907,7 @@ Event OnConsoleGetSkinOverrideString(String EventName, String sArgument, Float f
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -12084,14 +11925,13 @@ Event OnConsoleGetSkinOverrideString(String EventName, String sArgument, Float f
   PrintMessage("- Index: " + index)
 EndEvent
 
-
 Event OnConsoleGetSkinPropertyInt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: GetSkinPropertyInt([ObjectReference akActor = GetSelectedReference()], bool firstPerson, int slotMask, int key, int index)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -12116,7 +11956,7 @@ Event OnConsoleGetSkinPropertyInt(String EventName, String sArgument, Float fArg
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -12133,14 +11973,13 @@ Event OnConsoleGetSkinPropertyInt(String EventName, String sArgument, Float fArg
   PrintMessage("- Index: " + index)
 EndEvent
 
-
 Event OnConsoleGetSkinPropertyBool(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: GetSkinPropertyBool([ObjectReference akActor = GetSelectedReference()], bool firstPerson, int slotMask, int key, int index)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -12165,7 +12004,7 @@ Event OnConsoleGetSkinPropertyBool(String EventName, String sArgument, Float fAr
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -12182,14 +12021,13 @@ Event OnConsoleGetSkinPropertyBool(String EventName, String sArgument, Float fAr
   PrintMessage("- Index: " + index)
 EndEvent
 
-
 Event OnConsoleGetSkinPropertyString(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   
   ; Print usage instructions if the user requests help
   If self.StringFromSArgument(sArgument, 1) == "?"
     PrintMessage("Usage: GetSkinPropertyString([ObjectReference akActor = GetSelectedReference()], bool firstPerson, int slotMask, int key, int index)")
-    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index.")
+    PrintMessage("Note: Indexes are for controller index (0-255). Use -1 for properties not requiring a controller index")
     Return
   EndIf
   
@@ -12214,7 +12052,7 @@ Event OnConsoleGetSkinPropertyString(String EventName, String sArgument, Float f
 
   ; Check for critical errors
   If akActor == none
-    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid.")
+    PrintMessage("ERROR: Unable to retrieve required Actor. Ensure the selected reference is valid")
     Return
   EndIf
 
@@ -12231,7 +12069,6 @@ Event OnConsoleGetSkinPropertyString(String EventName, String sArgument, Float f
   PrintMessage("- Index: " + index)
 EndEvent
 
-
 Event OnConsoleGetABNumHeadParts(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetABNumHeadParts([Actorbase akActorbase = GetSelectedReference().GetActorBase()])")
@@ -12240,13 +12077,12 @@ Event OnConsoleGetABNumHeadParts(String EventName, String sArgument, Float fArgu
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int numHeadParts = akActorbase.GetNumHeadParts()
   PrintMessage("Number of head parts for " + self.GetFullID(akActorbase) + " is " + numHeadParts)
 EndEvent
-
 
 Event OnConsoleGetABNthHeadPart(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12257,13 +12093,12 @@ Event OnConsoleGetABNthHeadPart(String EventName, String sArgument, Float fArgum
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   int slotPart = self.IntFromSArgument(sArgument, 1)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   HeadPart nthHeadPart = akActorbase.GetNthHeadPart(slotPart)
   PrintMessage("Head part " + slotPart + " for " + self.GetFullID(akActorbase) + " is " + self.GetFullID(nthHeadPart))
 EndEvent
-
 
 Event OnConsoleSetABNthHeadPart(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12275,13 +12110,12 @@ Event OnConsoleSetABNthHeadPart(String EventName, String sArgument, Float fArgum
   HeadPart akHeadPart = self.FormFromSArgument(sArgument, 1) as HeadPart
   int slotPart = self.IntFromSArgument(sArgument, 2)
   If akActorbase == none || akHeadPart == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActorbase.SetNthHeadPart(akHeadPart, slotPart)
   PrintMessage("Set head part " + slotPart + " for " + self.GetFullID(akActorbase) + " to " + self.GetFullID(akHeadPart))
 EndEvent
-
 
 Event OnConsoleGetABIndexOfHeadPartByType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12292,13 +12126,12 @@ Event OnConsoleGetABIndexOfHeadPartByType(String EventName, String sArgument, Fl
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   int type = self.IntFromSArgument(sArgument, 1)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int index = akActorbase.GetIndexOfHeadPartByType(type)
   PrintMessage("Index of head part type " + type + " for " + self.GetFullID(akActorbase) + " is " + index)
 EndEvent
-
 
 Event OnConsoleGetABNumOverlayHeadParts(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12308,13 +12141,12 @@ Event OnConsoleGetABNumOverlayHeadParts(String EventName, String sArgument, Floa
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int numOverlayHeadParts = akActorbase.GetNumOverlayHeadParts()
   PrintMessage("Number of overlay head parts for " + self.GetFullID(akActorbase) + " is " + numOverlayHeadParts)
 EndEvent
-
 
 Event OnConsoleGetABNthOverlayHeadPart(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12325,13 +12157,12 @@ Event OnConsoleGetABNthOverlayHeadPart(String EventName, String sArgument, Float
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   int slotPart = self.IntFromSArgument(sArgument, 1)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   HeadPart nthOverlayHeadPart = akActorbase.GetNthOverlayHeadPart(slotPart)
   PrintMessage("Overlay head part " + slotPart + " for " + self.GetFullID(akActorbase) + " is " + self.GetFullID(nthOverlayHeadPart))
 EndEvent
-
 
 Event OnConsoleGetABIndexOfOverlayHeadPartByType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12342,13 +12173,12 @@ Event OnConsoleGetABIndexOfOverlayHeadPartByType(String EventName, String sArgum
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   int type = self.IntFromSArgument(sArgument, 1)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int index = akActorbase.GetIndexOfOverlayHeadPartByType(type)
   PrintMessage("Index of overlay head part type " + type + " for " + self.GetFullID(akActorbase) + " is " + index)
 EndEvent
-
 
 Event OnConsoleGetABFaceMorph(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12359,13 +12189,12 @@ Event OnConsoleGetABFaceMorph(String EventName, String sArgument, Float fArgumen
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   int index = self.IntFromSArgument(sArgument, 1)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float faceMorph = akActorbase.GetFaceMorph(index)
   PrintMessage("Face morph " + index + " for " + self.GetFullID(akActorbase) + " is " + faceMorph)
 EndEvent
-
 
 Event OnConsoleSetABFaceMorph(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12377,13 +12206,12 @@ Event OnConsoleSetABFaceMorph(String EventName, String sArgument, Float fArgumen
   float value = self.FloatFromSArgument(sArgument, 1)
   int index = self.IntFromSArgument(sArgument, 2)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActorbase.SetFaceMorph(value, index)
   PrintMessage("Set face morph " + index + " for " + self.GetFullID(akActorbase) + " to " + value)
 EndEvent
-
 
 Event OnConsoleGetABFacePreset(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12394,13 +12222,12 @@ Event OnConsoleGetABFacePreset(String EventName, String sArgument, Float fArgume
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   int index = self.IntFromSArgument(sArgument, 1)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int facePreset = akActorbase.GetFacePreset(index)
   PrintMessage("Face preset " + index + " for " + self.GetFullID(akActorbase) + " is " + facePreset)
 EndEvent
-
 
 Event OnConsoleSetABFacePreset(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12412,13 +12239,12 @@ Event OnConsoleSetABFacePreset(String EventName, String sArgument, Float fArgume
   int value = self.IntFromSArgument(sArgument, 1)
   int index = self.IntFromSArgument(sArgument, 2)
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActorbase.SetFacePreset(value, index)
   PrintMessage("Set face preset " + index + " for " + self.GetFullID(akActorbase) + " to " + value)
 EndEvent
-
 
 Event OnConsoleGetABSkinFar(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12428,13 +12254,12 @@ Event OnConsoleGetABSkinFar(String EventName, String sArgument, Float fArgument,
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Armor skinFar = akActorbase.GetSkinFar()
   PrintMessage("Far skin for " + self.GetFullID(akActorbase) + " is " + self.GetFullID(skinFar))
 EndEvent
-
 
 Event OnConsoleSetABSkinFar(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12445,13 +12270,12 @@ Event OnConsoleSetABSkinFar(String EventName, String sArgument, Float fArgument,
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   Armor skin = self.FormFromSArgument(sArgument, 1) as Armor
   If akActorbase == none || skin == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActorbase.SetSkinFar(skin)
   PrintMessage("Set far skin for " + self.GetFullID(akActorbase) + " to " + self.GetFullID(skin))
 EndEvent
-
 
 Event OnConsoleGetABTemplate(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12461,13 +12285,12 @@ Event OnConsoleGetABTemplate(String EventName, String sArgument, Float fArgument
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ActorBase template = akActorbase.GetTemplate()
   PrintMessage("Template for " + self.GetFullID(akActorbase) + " is " + self.GetFullID(template))
 EndEvent
-
 
 Event OnConsoleSetAutoLock(String EventName, String sArgument, Float fArgument, Form Sender)
     Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12492,13 +12315,13 @@ Event OnConsoleSetAutoLock(String EventName, String sArgument, Float fArgument, 
 
     ; Validate the reference
     If akRef == None
-        PrintMessage("FATAL ERROR: No valid reference selected or provided.")
+        PrintMessage("FATAL ERROR: No valid reference selected or provided")
         Return
     EndIf
 
     ; Ensure the reference is a door
     ; If akRef.GetBaseObject().GetType() != 34  ; Type 34 is a door
-    ;     PrintMessage("FATAL ERROR: The selected reference is not a door.")
+    ;     PrintMessage("FATAL ERROR: The selected reference is not a door")
     ;     Return
     ; EndIf
 
@@ -12506,7 +12329,6 @@ Event OnConsoleSetAutoLock(String EventName, String sArgument, Float fArgument, 
     DbMiscFunctions.AttachPapyrusScript("VCS_LockDoorOnCellChange", akRef)
     PrintMessage("Attached LockDoorOnCellChange script to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleRemoveAllNodeRefOverrides(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12519,13 +12341,12 @@ Event OnConsoleRemoveAllNodeRefOverrides(String EventName, String sArgument, Flo
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.RemoveAllReferenceNodeOverrides(akActor)
   PrintMessage("Removed all node overrides from " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleRemoveAllSkinRefOverrides(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12538,13 +12359,12 @@ Event OnConsoleRemoveAllSkinRefOverrides(String EventName, String sArgument, Flo
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.RemoveAllReferenceSkinOverrides(akActor)
   PrintMessage("Removed all skin overrides from " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleRemoveAllWeaponRefOverrides(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12557,13 +12377,12 @@ Event OnConsoleRemoveAllWeaponRefOverrides(String EventName, String sArgument, F
     akActor = self.RefFromSArgument(sArgument, 1) as Actor
   EndIf
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NiOverride.RemoveAllReferenceWeaponOverrides(akActor)
   PrintMessage("Removed all weapon overrides from " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleGetTextureSetNumPaths(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12573,13 +12392,12 @@ Event OnConsoleGetTextureSetNumPaths(String EventName, String sArgument, Float f
   EndIf
   TextureSet akTextureSet = self.FormFromSArgument(sArgument, 1) as TextureSet
   If akTextureSet == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int numPaths = akTextureSet.GetNumTexturePaths()
   PrintMessage("Number of paths in TextureSet " + self.GetFullID(akTextureSet) + " is " + numPaths)
 EndEvent
-
 
 Event OnConsoleGetMagicEffectLight(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12590,7 +12408,7 @@ Event OnConsoleGetMagicEffectLight(String EventName, String sArgument, Float fAr
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -12599,7 +12417,6 @@ Event OnConsoleGetMagicEffectLight(String EventName, String sArgument, Float fAr
   PrintMessage("Light of " + self.GetFullID(akMagicEffect) + " is " + self.GetFullID(result))
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectLight(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12611,7 +12428,7 @@ Event OnConsoleSetMagicEffectLight(String EventName, String sArgument, Float fAr
   Light akLight = self.FormFromSArgument(sArgument, 2) as Light
 
   If akMagicEffect == none || akLight == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -12626,10 +12443,9 @@ Event OnConsoleSetMagicEffectLight(String EventName, String sArgument, Float fAr
     
 EndEvent
 
-
 Event OnConsoleAddKeyword(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: AddKeyword <Form akForm | ObjectReference akRef = GetSelectedReference()> <Keyword akKeyword>.")
+  PrintMessage("Format: AddKeyword <Form akForm | ObjectReference akRef = GetSelectedReference()> <Keyword akKeyword>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -12651,7 +12467,7 @@ Event OnConsoleAddKeyword(String EventName, String sArgument, Float fArgument, F
     EndIf
   EndIf
   If akForm == none || akKeyword == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   If akForm as ObjectReference
@@ -12663,10 +12479,9 @@ Event OnConsoleAddKeyword(String EventName, String sArgument, Float fArgument, F
   EndIf
 EndEvent
 
-
 Event OnConsoleRemoveKeyword(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: RemoveKeyword <Form akForm | ObjectReference akRef = GetSelectedReference()> <Keyword akKeyword>.")
+  PrintMessage("Format: RemoveKeyword <Form akForm | ObjectReference akRef = GetSelectedReference()> <Keyword akKeyword>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -12688,22 +12503,21 @@ Event OnConsoleRemoveKeyword(String EventName, String sArgument, Float fArgument
     EndIf
   EndIf
   If akForm == none || akKeyword == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   If akForm as ObjectReference
     PO3_SKSEFunctions.RemoveKeywordFromRef(akForm as ObjectReference, akKeyword)
-    PrintMessage("Keyword " + self.GetFullID(akKeyword) + " added to reference " + self.GetFullID(akForm))
+    PrintMessage("Keyword " + self.GetFullID(akKeyword) + " removed from reference " + self.GetFullID(akForm))
   Else
     PO3_SKSEFunctions.RemoveKeywordOnForm(akForm, akKeyword)
-    PrintMessage("Keyword " + self.GetFullID(akKeyword) + " added to form " + self.GetFullID(akForm))
+    PrintMessage("Keyword " + self.GetFullID(akKeyword) + " removed from form " + self.GetFullID(akForm))
   EndIf
 EndEvent
 
-
 Event OnConsoleReplaceKeyword(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: ReplaceKeyword <Form akForm | ObjectReference akRef = GetSelectedReference()> <Keyword akKeywordAdd> <Keyword akKeywordRemove>.")
+  PrintMessage("Format: ReplaceKeyword <Form akForm | ObjectReference akRef = GetSelectedReference()> <Keyword akKeywordAdd> <Keyword akKeywordRemove>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -12739,7 +12553,7 @@ Event OnConsoleReplaceKeyword(String EventName, String sArgument, Float fArgumen
   EndIf
 
   If akForm == none || akKeywordAdd == none || akKeywordRemove == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
 
@@ -12755,7 +12569,6 @@ Event OnConsoleReplaceKeyword(String EventName, String sArgument, Float fArgumen
   PrintMessage("Keyword " + self.GetFullID(akKeywordRemove) + " replaced with " + self.GetFullID(akKeywordAdd) + " on form " + self.GetFullID(akForm))
 EndEvent
 
-
 Event OnConsoleGetTreeIngredient(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetTreeIngredient(TreeObject akTreeObject)")
@@ -12766,14 +12579,13 @@ Event OnConsoleGetTreeIngredient(String EventName, String sArgument, Float fArgu
   TreeObject akTreeObject = self.FormFromSArgument(sArgument, 1) as TreeObject
 
   If akTreeObject == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
 
   Form currentIngredient = akTreeObject.GetIngredient()
   PrintMessage("Current ingredient is " + self.GetFullID(currentIngredient))
 EndEvent
-
 
 Event OnConsoleSetTreeIngredient(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12787,7 +12599,7 @@ Event OnConsoleSetTreeIngredient(String EventName, String sArgument, Float fArgu
   
 
   If akTreeObject == none || akIngredient == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
 
@@ -12808,7 +12620,6 @@ Event OnConsoleSetTreeIngredient(String EventName, String sArgument, Float fArgu
 
 EndEvent
 
-
 Event OnConsoleIsKeyPressed(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: IsKeyPressed <Int dxKeycode>")
@@ -12822,7 +12633,6 @@ Event OnConsoleIsKeyPressed(String EventName, String sArgument, Float fArgument,
   PrintMessage("IsKeyPressed: " + result)
 EndEvent
 
-
 Event OnConsoleGetNumKeysPressed(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetNumKeysPressed")
@@ -12833,7 +12643,6 @@ Event OnConsoleGetNumKeysPressed(String EventName, String sArgument, Float fArgu
   int result = Input.GetNumKeysPressed()
   PrintMessage("GetNumKeysPressed: " + result)
 EndEvent
-
 
 Event OnConsoleGetNthKeyPressed(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12847,7 +12656,6 @@ Event OnConsoleGetNthKeyPressed(String EventName, String sArgument, Float fArgum
   int result = Input.GetNthKeyPressed(aiIndex)
   PrintMessage("GetNthKeyPressed: " + result)
 EndEvent
-
 
 Event OnConsoleGetMappedKey(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12866,7 +12674,6 @@ Event OnConsoleGetMappedKey(String EventName, String sArgument, Float fArgument,
   PrintMessage("GetMappedKey: " + result)
 EndEvent
 
-
 Event OnConsoleGetMappedControl(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMappedControl <Int keycode>")
@@ -12880,7 +12687,6 @@ Event OnConsoleGetMappedControl(String EventName, String sArgument, Float fArgum
   PrintMessage("GetMappedControl: " + result)
 EndEvent
 
-
 Event OnConsolePrecacheCharGenClear(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: PrecacheCharGenClear()")
@@ -12888,9 +12694,8 @@ Event OnConsolePrecacheCharGenClear(String EventName, String sArgument, Float fA
     Return
   EndIf
   Game.PrecacheCharGenClear()
-  PrintMessage("CharGen precache cleared.")
+  PrintMessage("CharGen precache cleared")
 EndEvent
-
 
 Event OnConsoleUpdateThirdPerson(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12899,9 +12704,8 @@ Event OnConsoleUpdateThirdPerson(String EventName, String sArgument, Float fArgu
     Return
   EndIf
   Game.UpdateThirdPerson()
-  PrintMessage("Updated third person.")
+  PrintMessage("Updated third person")
 EndEvent
-
 
 Event OnConsoleSetFormlistAsPapyrusQuestVar(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12913,9 +12717,11 @@ Event OnConsoleSetFormlistAsPapyrusQuestVar(String EventName, String sArgument, 
   string asVarname = StringFromSArgument(sArgument, 2)
   Formlist akFLST = FormFromSArgument(sArgument, 3) as Formlist
   Form[] newArray = FormlistToArray(akFLST)
-  PrintMessage("Updated third person.")
+  PrintMessage("SetFormlistAsPapyrusQuestVar")
+  PrintMessage("-  Quest: " + self.GetFullID(akQuest))
+  PrintMessage("-  Varname: " + asVarname)
+  PrintMessage("-  Formlist: " + self.GetFullID(akFLST))
 EndEvent
-
 
 Event OnConsoleModObjectiveGlobal(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12940,7 +12746,7 @@ Event OnConsoleModObjectiveGlobal(String EventName, String sArgument, Float fArg
   bool abRedisplayObjective = self.BoolFromSArgument(sArgument, 8, true)
 
   If akQuest == none || aModGlobal == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
 
@@ -12948,15 +12754,14 @@ Event OnConsoleModObjectiveGlobal(String EventName, String sArgument, Float fArg
   PrintMessage("ModObjectiveGlobal: " + result)
 EndEvent
 
-
 Event OnConsoleGetQuestAliases(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetQuestAliases [<Quest akQuest>].")
+  PrintMessage("Format: GetQuestAliases [<Quest akQuest>]")
 
   Quest akQuest = self.FormFromSArgument(sArgument, 1) as Quest
 
   If akQuest == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -12964,9 +12769,9 @@ Event OnConsoleGetQuestAliases(String EventName, String sArgument, Float fArgume
   int i = 0
   int L = aliases.Length
   If L > 0
-    PrintMessage("Found " + L + " aliases for quest " + self.GetFullID(akQuest) + ".")
+    PrintMessage("Found " + L + " aliases for quest " + self.GetFullID(akQuest))
   Else
-    PrintMessage("No aliases found.")
+    PrintMessage("No aliases found")
     Return
   EndIf
   While i < L
@@ -12974,7 +12779,6 @@ Event OnConsoleGetQuestAliases(String EventName, String sArgument, Float fArgume
     i += 1
   EndWhile
 EndEvent
-
 
 Event OnConsoleGetMagicEffectAssociatedSkill(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -12985,16 +12789,15 @@ Event OnConsoleGetMagicEffectAssociatedSkill(String EventName, String sArgument,
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   string result = akMagicEffect.GetAssociatedSkill()
   
-  PrintMessage("AssociatedSkill of " + self.GetFullID(akMagicEffect) + " is " + result)
+  PrintMessage("Associated skill of " + self.GetFullID(akMagicEffect) + " is " + result)
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectAssociatedSkill(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13006,7 +12809,7 @@ Event OnConsoleSetMagicEffectAssociatedSkill(String EventName, String sArgument,
   string asAssociatedSkill = self.StringFromSArgument(sArgument, 2)
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -13020,7 +12823,6 @@ Event OnConsoleSetMagicEffectAssociatedSkill(String EventName, String sArgument,
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectResistance(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectResistance(MagicEffect akMagicEffect)")
@@ -13030,7 +12832,7 @@ Event OnConsoleGetMagicEffectResistance(String EventName, String sArgument, Floa
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13039,7 +12841,6 @@ Event OnConsoleGetMagicEffectResistance(String EventName, String sArgument, Floa
   PrintMessage("Resistance of " + self.GetFullID(akMagicEffect) + " is " + result)
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectResistance(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13051,7 +12852,7 @@ Event OnConsoleSetMagicEffectResistance(String EventName, String sArgument, Floa
   string asResistance = self.StringFromSArgument(sArgument, 2)
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -13065,7 +12866,6 @@ Event OnConsoleSetMagicEffectResistance(String EventName, String sArgument, Floa
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectImpactDataSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectImpactDataSet(MagicEffect akMagicEffect)")
@@ -13075,7 +12875,7 @@ Event OnConsoleGetMagicEffectImpactDataSet(String EventName, String sArgument, F
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13084,7 +12884,6 @@ Event OnConsoleGetMagicEffectImpactDataSet(String EventName, String sArgument, F
   PrintMessage("ImpactDataSet of " + self.GetFullID(akMagicEffect) + " is " + self.GetFullID(result))
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectImpactDataSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13096,7 +12895,7 @@ Event OnConsoleSetMagicEffectImpactDataSet(String EventName, String sArgument, F
   ImpactDataSet akImpactDataSet = self.FormFromSArgument(sArgument, 2) as ImpactDataSet
 
   If akMagicEffect == none || akImpactDataSet == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13111,7 +12910,6 @@ Event OnConsoleSetMagicEffectImpactDataSet(String EventName, String sArgument, F
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectImageSpaceMod(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectImageSpaceMod(MagicEffect akMagicEffect)")
@@ -13121,7 +12919,7 @@ Event OnConsoleGetMagicEffectImageSpaceMod(String EventName, String sArgument, F
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13130,7 +12928,6 @@ Event OnConsoleGetMagicEffectImageSpaceMod(String EventName, String sArgument, F
   PrintMessage("Imagespace modifier of " + self.GetFullID(akMagicEffect) + " is " + self.GetFullID(result))
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectImageSpaceMod(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13142,7 +12939,7 @@ Event OnConsoleSetMagicEffectImageSpaceMod(String EventName, String sArgument, F
   ImageSpaceModifier akImageSpaceMod = self.FormFromSArgument(sArgument, 2) as ImageSpaceModifier
 
   If akMagicEffect == none || akImageSpaceMod == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13157,7 +12954,6 @@ Event OnConsoleSetMagicEffectImageSpaceMod(String EventName, String sArgument, F
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectPerk(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectPerk(MagicEffect akMagicEffect)")
@@ -13167,7 +12963,7 @@ Event OnConsoleGetMagicEffectPerk(String EventName, String sArgument, Float fArg
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13176,7 +12972,6 @@ Event OnConsoleGetMagicEffectPerk(String EventName, String sArgument, Float fArg
   PrintMessage("Imagespace modifier of " + self.GetFullID(akMagicEffect) + " is " + self.GetFullID(result))
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectPerk(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13188,7 +12983,7 @@ Event OnConsoleSetMagicEffectPerk(String EventName, String sArgument, Float fArg
   Perk akPerk = self.FormFromSArgument(sArgument, 2) as Perk
 
   If akMagicEffect == none || akPerk == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13203,7 +12998,6 @@ Event OnConsoleSetMagicEffectPerk(String EventName, String sArgument, Float fArg
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectEquipAbility(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectEquipAbility(MagicEffect akMagicEffect)")
@@ -13213,7 +13007,7 @@ Event OnConsoleGetMagicEffectEquipAbility(String EventName, String sArgument, Fl
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13222,7 +13016,6 @@ Event OnConsoleGetMagicEffectEquipAbility(String EventName, String sArgument, Fl
   PrintMessage("Imagespace modifier of " + self.GetFullID(akMagicEffect) + " is " + self.GetFullID(result))
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectEquipAbility(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13234,7 +13027,7 @@ Event OnConsoleSetMagicEffectEquipAbility(String EventName, String sArgument, Fl
   Spell akEquipAbility = self.FormFromSArgument(sArgument, 2) as Spell
 
   If akMagicEffect == none || akEquipAbility == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13248,7 +13041,6 @@ Event OnConsoleSetMagicEffectEquipAbility(String EventName, String sArgument, Fl
   PrintMessage("Imagespace modifier of " + self.GetFullID(akMagicEffect) + " is now " + self.GetFullID(akMagicEffect.GetEquipAbility()))
     
 EndEvent
-
 
 Event OnConsoleSetEffectFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13283,19 +13075,18 @@ Event OnConsoleSetEffectFlag(String EventName, String sArgument, Float fArgument
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   If aiFlag < 1 || aiFlag > 27
-    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("SetRecordFlag ?") + " to check valid values.")
+    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("SetRecordFlag ?") + " to check valid values")
     Return
   EndIf
 
   ; Set the record flag
   akMagicEffect.SetEffectFlag(aiFlag)
 EndEvent
-
 
 Event OnConsoleClearEffectFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13330,19 +13121,18 @@ Event OnConsoleClearEffectFlag(String EventName, String sArgument, Float fArgume
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   If aiFlag < 1 || aiFlag > 27
-    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("ClearRecordFlag ?") + " to check valid values.")
+    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("ClearRecordFlag ?") + " to check valid values")
     Return
   EndIf
 
   ; Clear the record flag
   akMagicEffect.ClearEffectFlag(aiFlag)
 EndEvent
-
 
 Event OnConsoleIsEffectFlagSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13353,19 +13143,18 @@ Event OnConsoleIsEffectFlagSet(String EventName, String sArgument, Float fArgume
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
 
   If aiFlag < 1 || aiFlag > 27
-    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("ClearRecordFlag ?") + " to check valid values.")
+    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("ClearRecordFlag ?") + " to check valid values")
     Return
   EndIf
 
   bool flagSet = akMagicEffect.IsEffectFlagSet(aiFlag)
   PrintMessage("IsEffectFlagSet: " + flagSet)
 EndEvent
-
 
 Event OnConsoleGetMagicEffectExplosion(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13376,7 +13165,7 @@ Event OnConsoleGetMagicEffectExplosion(String EventName, String sArgument, Float
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13385,7 +13174,6 @@ Event OnConsoleGetMagicEffectExplosion(String EventName, String sArgument, Float
   PrintMessage("Explosion of " + self.GetFullID(akMagicEffect) + " is " + self.GetFullID(result))
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectExplosion(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13397,7 +13185,7 @@ Event OnConsoleSetMagicEffectExplosion(String EventName, String sArgument, Float
   Explosion akExplosion = self.FormFromSArgument(sArgument, 2) as Explosion
 
   If akMagicEffect == none || akExplosion == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13412,7 +13200,6 @@ Event OnConsoleSetMagicEffectExplosion(String EventName, String sArgument, Float
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectProjectile(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectProjectile(MagicEffect akMagicEffect)")
@@ -13422,7 +13209,7 @@ Event OnConsoleGetMagicEffectProjectile(String EventName, String sArgument, Floa
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13431,7 +13218,6 @@ Event OnConsoleGetMagicEffectProjectile(String EventName, String sArgument, Floa
   PrintMessage("Projectile of " + self.GetFullID(akMagicEffect) + " is " + self.GetFullID(result))
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectProjectile(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13443,7 +13229,7 @@ Event OnConsoleSetMagicEffectProjectile(String EventName, String sArgument, Floa
   Projectile akProjectile = self.FormFromSArgument(sArgument, 2) as Projectile
 
   If akMagicEffect == none || akProjectile == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13458,7 +13244,6 @@ Event OnConsoleSetMagicEffectProjectile(String EventName, String sArgument, Floa
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectSkillLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectSkillLevel(MagicEffect akMagicEffect)")
@@ -13468,7 +13253,7 @@ Event OnConsoleGetMagicEffectSkillLevel(String EventName, String sArgument, Floa
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13477,7 +13262,6 @@ Event OnConsoleGetMagicEffectSkillLevel(String EventName, String sArgument, Floa
   PrintMessage("Skill level of " + self.GetFullID(akMagicEffect) + " is " + result)
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectSkillLevel(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13489,7 +13273,7 @@ Event OnConsoleSetMagicEffectSkillLevel(String EventName, String sArgument, Floa
   int aiLevel = self.IntFromSArgument(sArgument, 2)
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -13503,7 +13287,6 @@ Event OnConsoleSetMagicEffectSkillLevel(String EventName, String sArgument, Floa
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectBaseCost(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectBaseCost(MagicEffect akMagicEffect)")
@@ -13513,7 +13296,7 @@ Event OnConsoleGetMagicEffectBaseCost(String EventName, String sArgument, Float 
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13522,7 +13305,6 @@ Event OnConsoleGetMagicEffectBaseCost(String EventName, String sArgument, Float 
   PrintMessage("Base cost of " + self.GetFullID(akMagicEffect) + " is " + result)
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectBaseCost(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13534,7 +13316,7 @@ Event OnConsoleSetMagicEffectBaseCost(String EventName, String sArgument, Float 
   float afMult = self.FloatFromSArgument(sArgument, 2)
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -13548,7 +13330,6 @@ Event OnConsoleSetMagicEffectBaseCost(String EventName, String sArgument, Float 
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectCastTime(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectCastTime(MagicEffect akMagicEffect)")
@@ -13558,7 +13339,7 @@ Event OnConsoleGetMagicEffectCastTime(String EventName, String sArgument, Float 
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -13567,7 +13348,6 @@ Event OnConsoleGetMagicEffectCastTime(String EventName, String sArgument, Float 
   PrintMessage("Cast time of " + self.GetFullID(akMagicEffect) + " is " + result)
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectCastTime(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13579,7 +13359,7 @@ Event OnConsoleSetMagicEffectCastTime(String EventName, String sArgument, Float 
   float afCastTime = self.FloatFromSArgument(sArgument, 2)
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -13593,7 +13373,6 @@ Event OnConsoleSetMagicEffectCastTime(String EventName, String sArgument, Float 
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectArea(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectArea(MagicEffect akMagicEffect)")
@@ -13603,14 +13382,13 @@ Event OnConsoleGetMagicEffectArea(String EventName, String sArgument, Float fArg
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("Area of " + self.GetFullID(akMagicEffect) + " is " + akMagicEffect.GetArea())
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectArea(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13622,7 +13400,7 @@ Event OnConsoleSetMagicEffectArea(String EventName, String sArgument, Float fArg
   int aiArea = self.IntFromSArgument(sArgument, 2)
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -13636,7 +13414,6 @@ Event OnConsoleSetMagicEffectArea(String EventName, String sArgument, Float fArg
     
 EndEvent
 
-
 Event OnConsoleGetIngredientNthEffectArea(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetIngredientNthEffectArea(Ingredient akIngredient, int aiIndex)")
@@ -13647,14 +13424,13 @@ Event OnConsoleGetIngredientNthEffectArea(String EventName, String sArgument, Fl
   int aiIndex = self.IntFromSArgument(sArgument, 2)
 
   If akIngredient == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("NthEffectArea of " + self.GetFullID(akIngredient) + " is " + akIngredient.GetNthEffectArea(aiIndex))
     
 EndEvent
-
 
 Event OnConsoleSetIngredientNthEffectArea(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13667,7 +13443,7 @@ Event OnConsoleSetIngredientNthEffectArea(String EventName, String sArgument, Fl
   int aiNthEffectArea = self.IntFromSArgument(sArgument, 3)
 
   If akIngredient == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -13681,7 +13457,6 @@ Event OnConsoleSetIngredientNthEffectArea(String EventName, String sArgument, Fl
     
 EndEvent
 
-
 Event OnConsoleGetIngredientNthEffectMagnitude(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetIngredientNthEffectMagnitude(Ingredient akIngredient, int aiIndex)")
@@ -13692,14 +13467,13 @@ Event OnConsoleGetIngredientNthEffectMagnitude(String EventName, String sArgumen
   int aiIndex = self.IntFromSArgument(sArgument, 2)
 
   If akIngredient == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("NthEffectMagnitude of " + self.GetFullID(akIngredient) + " is " + akIngredient.GetNthEffectMagnitude(aiIndex))
     
 EndEvent
-
 
 Event OnConsoleSetIngredientNthEffectMagnitude(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13712,7 +13486,7 @@ Event OnConsoleSetIngredientNthEffectMagnitude(String EventName, String sArgumen
   float afMagnitude = self.IntFromSArgument(sArgument, 3)
 
   If akIngredient == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -13726,7 +13500,6 @@ Event OnConsoleSetIngredientNthEffectMagnitude(String EventName, String sArgumen
     
 EndEvent
 
-
 Event OnConsoleGetIngredientNthEffectDuration(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetIngredientNthEffectDuration(Ingredient akIngredient, int aiIndex)")
@@ -13737,14 +13510,13 @@ Event OnConsoleGetIngredientNthEffectDuration(String EventName, String sArgument
   int aiIndex = self.IntFromSArgument(sArgument, 2)
 
   If akIngredient == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("NthEffectDuration of " + self.GetFullID(akIngredient) + " is " + akIngredient.GetNthEffectDuration(aiIndex))
     
 EndEvent
-
 
 Event OnConsoleSetIngredientNthEffectDuration(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13757,7 +13529,7 @@ Event OnConsoleSetIngredientNthEffectDuration(String EventName, String sArgument
   int aiDuration = self.IntFromSArgument(sArgument, 3)
 
   If akIngredient == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -13770,7 +13542,6 @@ Event OnConsoleSetIngredientNthEffectDuration(String EventName, String sArgument
   PrintMessage("NthEffectDuration of " + self.GetFullID(akIngredient) + " is now " + akIngredient.GetNthEffectDuration(aiIndex))
     
 EndEvent
-
 
 Event OnConsoleSetRaceFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13811,19 +13582,18 @@ Event OnConsoleSetRaceFlag(String EventName, String sArgument, Float fArgument, 
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
 
   If akRace == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   If aiFlag < 1 || aiFlag > 27
-    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("SetRecordFlag ?") + " to check valid values.")
+    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("SetRecordFlag ?") + " to check valid values")
     Return
   EndIf
 
   ; Set the record flag
   akRace.SetRaceFlag(aiFlag)
 EndEvent
-
 
 Event OnConsoleClearRaceFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13864,19 +13634,18 @@ Event OnConsoleClearRaceFlag(String EventName, String sArgument, Float fArgument
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
 
   If akRace == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   If aiFlag < 1 || aiFlag > 27
-    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("ClearRecordFlag ?") + " to check valid values.")
+    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("ClearRecordFlag ?") + " to check valid values")
     Return
   EndIf
 
   ; Clear the record flag
   akRace.ClearRaceFlag(aiFlag)
 EndEvent
-
 
 Event OnConsoleIsRaceFlagSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13914,19 +13683,18 @@ Event OnConsoleIsRaceFlagSet(String EventName, String sArgument, Float fArgument
   Race akRace = self.FormFromSArgument(sArgument, 1) as Race
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
   If akRace == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
 
   If aiFlag < 1 || aiFlag > 27
-    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("ClearRecordFlag ?") + " to check valid values.")
+    PrintMessage("FATAL ERROR: Invalid flag number provided. Run " + DoubleQuotes("ClearRecordFlag ?") + " to check valid values")
     Return
   EndIf
 
   bool flagSet = akRace.IsRaceFlagSet(aiFlag)
   PrintMessage("IsRaceFlagSet: " + flagSet)
 EndEvent
-
 
 Event OnConsoleGetRaceSkin(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13936,14 +13704,13 @@ Event OnConsoleGetRaceSkin(String EventName, String sArgument, Float fArgument, 
   EndIf
   Race akRace = self.FormFromSArgument(sArgument, 1) as Race
   If akRace == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   Armor akRaceSkin = akRace.GetSkin()
   PrintMessage("RaceSkin of " + self.GetFullID(akRace) + " is " + self.GetFullID(akRaceSkin))
 EndEvent
-
 
 Event OnConsoleSetRaceSkin(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13954,7 +13721,7 @@ Event OnConsoleSetRaceSkin(String EventName, String sArgument, Float fArgument, 
   Race akRace = self.FormFromSArgument(sArgument, 1) as Race
   Armor akNewRaceSkin = self.FormFromSArgument(sArgument,2) as Armor
   If akRace == none || akNewRaceSkin == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("RaceSkin of " + self.GetFullID(akRace) + " is " + self.GetFullID(akRace.GetSkin()))
@@ -13967,7 +13734,6 @@ Event OnConsoleSetRaceSkin(String EventName, String sArgument, Float fArgument, 
   EndIf
 EndEvent
 
-
 Event OnConsoleGetRaceDefaultVoiceType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetRaceDefaultVoiceType(Race akRace, bool abFemale = false)")
@@ -13977,14 +13743,13 @@ Event OnConsoleGetRaceDefaultVoiceType(String EventName, String sArgument, Float
   Race akRace = self.FormFromSArgument(sArgument, 1) as Race
   bool abFemale = self.BoolFromSArgument(sArgument, 1, false)
   If akRace == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   VoiceType akRaceDefaultVoiceType = akRace.GetDefaultVoiceType(abFemale)
   PrintMessage("RaceDefaultVoiceType of " + self.GetFullID(akRace) + " is " + self.GetFullID(akRaceDefaultVoiceType))
 EndEvent
-
 
 Event OnConsoleSetRaceDefaultVoiceType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -13996,7 +13761,7 @@ Event OnConsoleSetRaceDefaultVoiceType(String EventName, String sArgument, Float
   bool abFemale = self.BoolFromSArgument(sArgument, 2, false)
   VoiceType akNewVoiceType = self.FormFromSArgument(sArgument, 3) as VoiceType
   If akRace == none || akNewVoiceType == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("RaceDefaultVoiceType of " + self.GetFullID(akRace) + " is " + self.GetFullID(akRace.GetDefaultVoiceType(abFemale)))
@@ -14009,7 +13774,6 @@ Event OnConsoleSetRaceDefaultVoiceType(String EventName, String sArgument, Float
   EndIf
 EndEvent
 
-
 Event OnConsoleGetActorValueInfoByName(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetAVIByName(String asName)")
@@ -14019,13 +13783,12 @@ Event OnConsoleGetActorValueInfoByName(String EventName, String sArgument, Float
   String asName = self.StringFromSArgument(sArgument, 1)
   ActorValueInfo result = ActorValueInfo.GetAVIByName(asName)
   If result == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("Actor value info is " + self.GetFullID(result))
 EndEvent
-
 
 Event OnConsoleGetArmorAddonModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14037,13 +13800,12 @@ Event OnConsoleGetArmorAddonModelPath(String EventName, String sArgument, Float 
   bool abFemale = self.BoolFromSArgument(sArgument, 2, false)
   bool abFirstPerson = self.BoolFromSArgument(sArgument, 3, false)
   If akArmorAddon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string Result = akArmorAddon.GetModelPath(abFemale, abFirstPerson)
   PrintMessage("GetArmorAddonModelPath " + self.GetFullID(akArmorAddon) + " is " + Result)
 EndEvent
-
 
 Event OnConsoleSetArmorAddonModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14056,13 +13818,12 @@ Event OnConsoleSetArmorAddonModelPath(String EventName, String sArgument, Float 
   bool abFirstPerson = self.BoolFromSArgument(sArgument, 3, false)
   string asPath = DbMiscFunctions.RemovePrefixFromString(sArgument, self.StringFromSArgument(sArgument, 0) + " " + self.StringFromSArgument(sArgument, 1) + " " + self.StringFromSArgument(sArgument, 2) + self.StringFromSArgument(sArgument, 3) + " ")
   If akArmorAddon == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmorAddon.SetModelPath(abFemale, abFirstPerson, asPath)
   PrintMessage("SetArmorAddonModelPath " + self.GetFullID(akArmorAddon) + " to " + asPath)
 EndEvent
-
 
 Event OnConsoleGetConstructibleObjectResult(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14074,14 +13835,13 @@ Event OnConsoleGetConstructibleObjectResult(String EventName, String sArgument, 
   ConstructibleObject akConstructibleObject = self.FormFromSArgument(sArgument, 1) as ConstructibleObject
 
   If akConstructibleObject == none
-    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed")
     Return
   EndIf
 
   Form result = akConstructibleObject.GetResult()
   PrintMessage("GetResult: " + self.GetFullID(result))
 EndEvent
-
 
 Event OnConsoleSetConstructibleObjectResult(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14094,14 +13854,13 @@ Event OnConsoleSetConstructibleObjectResult(String EventName, String sArgument, 
   Form akResult = self.FormFromSArgument(sArgument, 2)
 
   If akConstructibleObject == none || akResult == none
-    PrintMessage("FATAL ERROR: ConstructibleObject or result retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject or result retrieval failed")
     Return
   EndIf
 
   akConstructibleObject.SetResult(akResult)
   PrintMessage("Result of " + self.GetFullID(akConstructibleObject) + " set as " + self.GetFullID(akResult))
 EndEvent
-
 
 Event OnConsoleGetConstructibleObjectResultQuantity(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14113,14 +13872,13 @@ Event OnConsoleGetConstructibleObjectResultQuantity(String EventName, String sAr
   ConstructibleObject akConstructibleObject = self.FormFromSArgument(sArgument, 1) as ConstructibleObject
 
   If akConstructibleObject == none
-    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed")
     Return
   EndIf
 
   int quantity = akConstructibleObject.GetResultQuantity()
   PrintMessage("GetResultQuantity: " + quantity)
 EndEvent
-
 
 Event OnConsoleSetConstructibleObjectResultQuantity(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14133,14 +13891,13 @@ Event OnConsoleSetConstructibleObjectResultQuantity(String EventName, String sAr
   int quantity = self.IntFromSArgument(sArgument, 2)
 
   If akConstructibleObject == none
-    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed")
     Return
   EndIf
 
   akConstructibleObject.SetResultQuantity(quantity)
   PrintMessage("SetResultQuantity applied to " + akConstructibleObject)
 EndEvent
-
 
 Event OnConsoleGetConstructibleObjectNumIngredients(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14152,14 +13909,13 @@ Event OnConsoleGetConstructibleObjectNumIngredients(String EventName, String sAr
   ConstructibleObject akConstructibleObject = self.FormFromSArgument(sArgument, 1) as ConstructibleObject
 
   If akConstructibleObject == none
-    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed")
     Return
   EndIf
 
   int numIngredients = akConstructibleObject.GetNumIngredients()
   PrintMessage("GetNumIngredients: " + numIngredients)
 EndEvent
-
 
 Event OnConsoleGetConstructibleObjectNthIngredient(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14172,14 +13928,13 @@ Event OnConsoleGetConstructibleObjectNthIngredient(String EventName, String sArg
   int aiIndex = self.IntFromSArgument(sArgument, 2)
 
   If akConstructibleObject == none
-    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed")
     Return
   EndIf
 
   Form result = akConstructibleObject.GetNthIngredient(aiIndex)
   PrintMessage("GetNthIngredient: " + self.GetFullID(result))
 EndEvent
-
 
 Event OnConsoleSetConstructibleObjectNthIngredient(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14193,14 +13948,13 @@ Event OnConsoleSetConstructibleObjectNthIngredient(String EventName, String sArg
   int aiIndex = self.IntFromSArgument(sArgument, 3)
 
   If akConstructibleObject == none || required == none
-    PrintMessage("FATAL ERROR: ConstructibleObject or required form retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject or required form retrieval failed")
     Return
   EndIf
 
   akConstructibleObject.SetNthIngredient(required, aiIndex)
   PrintMessage("SetNthIngredient applied to " + self.GetFullID(akConstructibleObject))
 EndEvent
-
 
 Event OnConsoleGetConstructibleObjectNthIngredientQuantity(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14213,14 +13967,13 @@ Event OnConsoleGetConstructibleObjectNthIngredientQuantity(String EventName, Str
   int aiIndex = self.IntFromSArgument(sArgument, 2)
 
   If akConstructibleObject == none
-    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed")
     Return
   EndIf
 
   int quantity = akConstructibleObject.GetNthIngredientQuantity(aiIndex)
   PrintMessage("GetNthIngredientQuantity: " + quantity)
 EndEvent
-
 
 Event OnConsoleSetConstructibleObjectNthIngredientQuantity(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14234,14 +13987,13 @@ Event OnConsoleSetConstructibleObjectNthIngredientQuantity(String EventName, Str
   int aiIndex = self.IntFromSArgument(sArgument, 3)
 
   If akConstructibleObject == none
-    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed")
     Return
   EndIf
 
   akConstructibleObject.SetNthIngredientQuantity(value, aiIndex)
   PrintMessage("SetNthIngredientQuantity applied to " + akConstructibleObject)
 EndEvent
-
 
 Event OnConsoleGetConstructibleObjectWorkbenchKeyword(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14253,14 +14005,13 @@ Event OnConsoleGetConstructibleObjectWorkbenchKeyword(String EventName, String s
   ConstructibleObject akConstructibleObject = self.FormFromSArgument(sArgument, 1) as ConstructibleObject
 
   If akConstructibleObject == none
-    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject retrieval failed")
     Return
   EndIf
 
   Keyword result = akConstructibleObject.GetWorkbenchKeyword()
   PrintMessage("GetWorkbenchKeyword: " + self.GetFullID(result))
 EndEvent
-
 
 Event OnConsoleSetConstructibleObjectWorkbenchKeyword(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14273,14 +14024,13 @@ Event OnConsoleSetConstructibleObjectWorkbenchKeyword(String EventName, String s
   Keyword aKeyword = self.FormFromSArgument(sArgument, 2) as Keyword
 
   If akConstructibleObject == none || aKeyword == none
-    PrintMessage("FATAL ERROR: ConstructibleObject or Keyword retrieval failed.")
+    PrintMessage("FATAL ERROR: ConstructibleObject or Keyword retrieval failed")
     Return
   EndIf
 
   akConstructibleObject.SetWorkbenchKeyword(aKeyword)
   PrintMessage("SetWorkbenchKeyword applied to " + self.GetFullID(akConstructibleObject))
 EndEvent
-
 
 Event OnConsoleGetFloraIngredient(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14292,14 +14042,13 @@ Event OnConsoleGetFloraIngredient(String EventName, String sArgument, Float fArg
   Flora akFlora = self.FormFromSArgument(sArgument, 1) as Flora
 
   If akFlora == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
 
   Form currentIngredient = akFlora.GetIngredient()
   PrintMessage("Current ingredient is " + self.GetFullID(currentIngredient))
 EndEvent
-
 
 Event OnConsoleSetFloraIngredient(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14313,7 +14062,7 @@ Event OnConsoleSetFloraIngredient(String EventName, String sArgument, Float fArg
   
 
   If akFlora == none || akIngredient == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
 
@@ -14334,7 +14083,6 @@ Event OnConsoleSetFloraIngredient(String EventName, String sArgument, Float fArg
 
 EndEvent
 
-
 Event OnConsoleGetPotionNthEffectArea(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetPotionNthEffectArea(Potion akPotion, int aiIndex)")
@@ -14345,14 +14093,13 @@ Event OnConsoleGetPotionNthEffectArea(String EventName, String sArgument, Float 
   int aiIndex = self.IntFromSArgument(sArgument, 2)
 
   If akPotion == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("NthEffectArea of " + self.GetFullID(akPotion) + " is " + akPotion.GetNthEffectArea(aiIndex))
     
 EndEvent
-
 
 Event OnConsoleSetPotionNthEffectArea(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14365,7 +14112,7 @@ Event OnConsoleSetPotionNthEffectArea(String EventName, String sArgument, Float 
   int aiNthEffectArea = self.IntFromSArgument(sArgument, 3)
 
   If akPotion == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -14379,7 +14126,6 @@ Event OnConsoleSetPotionNthEffectArea(String EventName, String sArgument, Float 
     
 EndEvent
 
-
 Event OnConsoleGetPotionNthEffectMagnitude(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetPotionNthEffectMagnitude(Potion akPotion, int aiIndex)")
@@ -14390,14 +14136,13 @@ Event OnConsoleGetPotionNthEffectMagnitude(String EventName, String sArgument, F
   int aiIndex = self.IntFromSArgument(sArgument, 2)
 
   If akPotion == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("NthEffectMagnitude of " + self.GetFullID(akPotion) + " is " + akPotion.GetNthEffectMagnitude(aiIndex))
     
 EndEvent
-
 
 Event OnConsoleSetPotionNthEffectMagnitude(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14410,7 +14155,7 @@ Event OnConsoleSetPotionNthEffectMagnitude(String EventName, String sArgument, F
   float afMagnitude = self.IntFromSArgument(sArgument, 3)
 
   If akPotion == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -14424,7 +14169,6 @@ Event OnConsoleSetPotionNthEffectMagnitude(String EventName, String sArgument, F
     
 EndEvent
 
-
 Event OnConsoleGetPotionNthEffectDuration(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetPotionNthEffectDuration(Potion akPotion, int aiIndex)")
@@ -14435,14 +14179,13 @@ Event OnConsoleGetPotionNthEffectDuration(String EventName, String sArgument, Fl
   int aiIndex = self.IntFromSArgument(sArgument, 2)
 
   If akPotion == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("NthEffectDuration of " + self.GetFullID(akPotion) + " is " + akPotion.GetNthEffectDuration(aiIndex))
     
 EndEvent
-
 
 Event OnConsoleSetPotionNthEffectDuration(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14455,7 +14198,7 @@ Event OnConsoleSetPotionNthEffectDuration(String EventName, String sArgument, Fl
   int aiDuration = self.IntFromSArgument(sArgument, 3)
 
   If akPotion == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -14469,7 +14212,6 @@ Event OnConsoleSetPotionNthEffectDuration(String EventName, String sArgument, Fl
     
 EndEvent
 
-
 Event OnConsoleGetHeadPartValidRaces(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetHeadpartValidRaces(HeadPart akHeadPart)")
@@ -14478,7 +14220,7 @@ Event OnConsoleGetHeadPartValidRaces(String EventName, String sArgument, Float f
   EndIf
   HeadPart akHeadPart = self.FormFromSArgument(sArgument, 1) as HeadPart
   If akHeadPart == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
   EndIf
   FormList vRaces = akHeadPart.GetValidRaces()
   int i = 0
@@ -14494,7 +14236,6 @@ Event OnConsoleGetHeadPartValidRaces(String EventName, String sArgument, Float f
     EndIf
 EndEvent
 
-
 Event OnConsoleGetHeadPartType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetHeadPartType(HeadPart akHeadPart)")
@@ -14503,7 +14244,7 @@ Event OnConsoleGetHeadPartType(String EventName, String sArgument, Float fArgume
   EndIf
   HeadPart akHeadPart = self.FormFromSArgument(sArgument, 1) as HeadPart
   If akHeadPart == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
   EndIf
   int type = akHeadPart.GetType()
   string typeStr 
@@ -14527,7 +14268,6 @@ Event OnConsoleGetHeadPartType(String EventName, String sArgument, Float fArgume
   PrintMessage(self.GetFullID(akHeadPart) + " type is " + type + " (" + typeStr + ")")
 EndEvent
 
-
 Event OnConsoleGetAllHeadParts(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetAllHeadParts [<Actorbase akActorbase>]")
@@ -14541,7 +14281,7 @@ Event OnConsoleGetAllHeadParts(String EventName, String sArgument, Float fArgume
     akActorbase = self.FormFromSArgument(sArgument, 1) as Actorbase
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -14561,7 +14301,6 @@ Event OnConsoleGetAllHeadParts(String EventName, String sArgument, Float fArgume
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetAllOverlayHeadParts(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetAllOverlayHeadParts [<Actorbase akActorbase>]")
@@ -14575,7 +14314,7 @@ Event OnConsoleGetAllOverlayHeadParts(String EventName, String sArgument, Float 
     akActorbase = self.FormFromSArgument(sArgument, 1) as Actorbase
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -14595,7 +14334,6 @@ Event OnConsoleGetAllOverlayHeadParts(String EventName, String sArgument, Float 
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetABClass(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetABClass [<Actorbase akActorbase>]")
@@ -14607,13 +14345,12 @@ Event OnConsoleGetABClass(String EventName, String sArgument, Float fArgument, F
     akActorbase = self.FormFromSArgument(sArgument, 1) as Actorbase
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("Class of " + self.GetFullID(akActorBase) + " is " + self.GetFullID(akActorbase.GetClass()))
 EndEvent
-
 
 Event OnConsoleSetABClass(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14631,11 +14368,11 @@ Event OnConsoleSetABClass(String EventName, String sArgument, Float fArgument, F
     akClass = self.FormFromSArgument(sArgument, 2) as Class
   EndIf
   If akActorbase == none || akClass == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Class akOldClass = akActorbase.GetClass()
-  PrintMessage("Class of " + self.GetFullID(akActorBase) + " is currently " + self.GetFullID(akOldClass) + ". Attempting to change to " + self.GetFullID(akClass) + ".")
+  PrintMessage("Class of " + self.GetFullID(akActorBase) + " is currently " + self.GetFullID(akOldClass) + ". Attempting to change to " + self.GetFullID(akClass))
   akActorBase.SetClass(akClass)
   Class akNewClass = akActorbase.GetClass()
   If akClass == akNewClass
@@ -14643,7 +14380,6 @@ Event OnConsoleSetABClass(String EventName, String sArgument, Float fArgument, F
   EndIf
   PrintMessage("Class of " + self.GetFullID(akActorBase) + " is now " + self.GetFullID(akNewClass))
 EndEvent
-
 
 Event OnConsoleGetABSpells(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14658,7 +14394,7 @@ Event OnConsoleGetABSpells(String EventName, String sArgument, Float fArgument, 
     akActorbase = self.FormFromSArgument(sArgument, 1) as Actorbase
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -14679,7 +14415,6 @@ Event OnConsoleGetABSpells(String EventName, String sArgument, Float fArgument, 
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetLocationCleared(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetLocationCleared(Location akLocation)")
@@ -14688,19 +14423,18 @@ Event OnConsoleGetLocationCleared(String EventName, String sArgument, Float fArg
   EndIf
   Location akLocation = self.FormFromSArgument(sArgument, 1) as Location
   If akLocation == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   bool cleared = akLocation.IsCleared()
 
   If cleared
-    PrintMessage("Location " + self.GetFullID(akLocation) + " is set as cleared.")
+    PrintMessage("Location " + self.GetFullID(akLocation) + " is set as cleared")
   Else
-    PrintMessage("Location " + self.GetFullID(akLocation) + " is not set as cleared.")
+    PrintMessage("Location " + self.GetFullID(akLocation) + " is not set as cleared")
   EndIf
 EndEvent
-
 
 Event OnConsoleSetLocationCleared(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14712,19 +14446,18 @@ Event OnConsoleSetLocationCleared(String EventName, String sArgument, Float fArg
   Location akLocation = self.FormFromSArgument(sArgument, 1) as Location
   bool abCleared = self.BoolFromSArgument(sArgument, 2, true)
   If akLocation == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   akLocation.SetCleared(abCleared)
 
   If abCleared
-    PrintMessage("Location " + self.GetFullID(akLocation) + " set as cleared.")
+    PrintMessage("Location " + self.GetFullID(akLocation) + " set as cleared")
   Else
-    PrintMessage("Location " + self.GetFullID(akLocation) + " set as not cleared.")
+    PrintMessage("Location " + self.GetFullID(akLocation) + " set as not cleared")
   EndIf
 EndEvent
-
 
 Event OnConsoleGetLocationParent(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14734,19 +14467,18 @@ Event OnConsoleGetLocationParent(String EventName, String sArgument, Float fArgu
   EndIf
   Location akLocation = self.FormFromSArgument(sArgument, 1) as Location
   If akLocation == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
   Location locationParent = akLocation.GetParent()
   
   If locationParent == none
-    PrintMessage("Location " + self.GetFullID(akLocation) + " has no location parent.")
+    PrintMessage("Location " + self.GetFullID(akLocation) + " has no location parent")
   Else
     PrintMessage("Parent location of " + self.GetFullID(akLocation) + " is " + self.GetFullID(locationParent))
   EndIf
 EndEvent
-
 
 Event OnConsoleSetLocationParent(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14757,7 +14489,7 @@ Event OnConsoleSetLocationParent(String EventName, String sArgument, Float fArgu
   Location akLocation = self.FormFromSArgument(sArgument, 1) as Location
   Location akNewParent = self.FormFromSArgument(sArgument, 2) as Location
   If akLocation == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   endif
 
@@ -14771,7 +14503,6 @@ Event OnConsoleSetLocationParent(String EventName, String sArgument, Float fArgu
   EndIf
 EndEvent
 
-
 Event OnConsoleClearCachedFactionFightReactions(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: ClearCachedFactionFightReactions()")
@@ -14779,9 +14510,8 @@ Event OnConsoleClearCachedFactionFightReactions(String EventName, String sArgume
     Return
   EndIf
   PO3_SKSEFunctions.ClearCachedFactionFightReactions()
-  PrintMessage("Cleared cache faction fight reactions.")
+  PrintMessage("Cleared cache faction fight reactions")
 EndEvent
-
 
 Event OnConsoleGetLocalGravity(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14793,12 +14523,11 @@ Event OnConsoleGetLocalGravity(String EventName, String sArgument, Float fArgume
   PrintMessage("Local gravity is " + PO3_SKSEFunctions.GetLocalGravity())
 EndEvent
 
-
 Event OnConsoleFindForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: FindForm(int aiFormType, Keyword[] akKeywords = None)")
   PrintMessage("akKeywords example: ActorTypeUndead,ActorTypeNPC,FE015329")
-  PrintMessage("Check FormTypeHelp for valid form types.")
+  PrintMessage("Check FormTypeHelp for valid form types")
   
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
@@ -14822,7 +14551,7 @@ Event OnConsoleFindForm(String EventName, String sArgument, Float fArgument, For
   Form[] akForms = self.FormArrayFromSArgument(sArgument, 2)
 
   If aiFormType > 134 || aiFormType < 1
-    PrintMessage("Invalid formtype number.")
+    PrintMessage("Invalid formtype number")
     Return
   EndIf
 
@@ -14842,7 +14571,7 @@ Event OnConsoleFindForm(String EventName, String sArgument, Float fArgument, For
     If L2 <= 0
       PrintMessage("No matching forms found for keyword " + self.GetFullID(partialKeywords[0]))
     Else
-      PrintMessage("Found " + L2 + " matching forms.")
+      PrintMessage("Found " + L2 + " matching forms")
     EndIf
     While j < L2
       PrintMessage("Form #" + j + ": " + self.GetFullID(formResults[j]))
@@ -14853,7 +14582,6 @@ Event OnConsoleFindForm(String EventName, String sArgument, Float fArgument, For
 
 EndEvent
 
-
 Event OnConsoleGetAddonModels(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetAddonModels <EffectShader akEffectShader>")
@@ -14863,7 +14591,7 @@ Event OnConsoleGetAddonModels(String EventName, String sArgument, Float fArgumen
   
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 1) as EffectShader
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -14874,7 +14602,6 @@ Event OnConsoleGetAddonModels(String EventName, String sArgument, Float fArgumen
     PrintMessage("No addon models found for " + self.GetFullID(akEffectShader))
   EndIf
 EndEvent
-
 
 Event OnConsoleGetEffectShaderTotalCount(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14887,14 +14614,13 @@ Event OnConsoleGetEffectShaderTotalCount(String EventName, String sArgument, Flo
   Bool abActive = self.BoolFromSArgument(sArgument, 2)
   
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   Int totalCount = PO3_SKSEFunctions.GetEffectShaderTotalCount(akEffectShader, abActive)
   PrintMessage("Total count for " + self.GetFullID(akEffectShader) + ": " + totalCount)
 EndEvent
-
 
 Event OnConsoleIsEffectShaderFlagSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14907,14 +14633,13 @@ Event OnConsoleIsEffectShaderFlagSet(String EventName, String sArgument, Float f
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
   
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   Bool isFlagSet = PO3_SKSEFunctions.IsEffectShaderFlagSet(akEffectShader, aiFlag)
   PrintMessage("Flag " + aiFlag + " for " + self.GetFullID(akEffectShader) + " is set: " + isFlagSet)
 EndEvent
-
 
 Event OnConsoleGetMembraneFillTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14925,14 +14650,13 @@ Event OnConsoleGetMembraneFillTexture(String EventName, String sArgument, Float 
   
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 1) as EffectShader
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   String textureName = PO3_SKSEFunctions.GetMembraneFillTexture(akEffectShader)
   PrintMessage("Membrane fill texture for " + self.GetFullID(akEffectShader) + ": " + textureName)
 EndEvent
-
 
 Event OnConsoleGetMembraneHolesTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14943,14 +14667,13 @@ Event OnConsoleGetMembraneHolesTexture(String EventName, String sArgument, Float
   
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 1) as EffectShader
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   String textureName = PO3_SKSEFunctions.GetMembraneHolesTexture(akEffectShader)
   PrintMessage("Membrane Holes texture for " + self.GetFullID(akEffectShader) + ": " + textureName)
 EndEvent
-
 
 Event OnConsoleGetMembranePaletteTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14961,14 +14684,13 @@ Event OnConsoleGetMembranePaletteTexture(String EventName, String sArgument, Flo
   
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 1) as EffectShader
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   String textureName = PO3_SKSEFunctions.GetMembranePaletteTexture(akEffectShader)
   PrintMessage("Membrane Palette texture for " + self.GetFullID(akEffectShader) + ": " + textureName)
 EndEvent
-
 
 Event OnConsoleGetParticleFullCount(String EventName, String sArgument, Float fArgument, Form Sender)
   float QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14980,14 +14702,13 @@ Event OnConsoleGetParticleFullCount(String EventName, String sArgument, Float fA
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 1) as EffectShader
   
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   float FullCount = PO3_SKSEFunctions.GetParticleFullCount(akEffectShader)
   PrintMessage("Total count for " + self.GetFullID(akEffectShader) + ": " + FullCount)
 EndEvent
-
 
 Event OnConsoleGetParticlePaletteTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -14998,14 +14719,13 @@ Event OnConsoleGetParticlePaletteTexture(String EventName, String sArgument, Flo
   
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 1) as EffectShader
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   String textureName = PO3_SKSEFunctions.GetParticlePaletteTexture(akEffectShader)
   PrintMessage("Particle Palette texture for " + self.GetFullID(akEffectShader) + ": " + textureName)
 EndEvent
-
 
 Event OnConsoleGetParticleShaderTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15016,14 +14736,13 @@ Event OnConsoleGetParticleShaderTexture(String EventName, String sArgument, Floa
   
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 1) as EffectShader
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   String textureName = PO3_SKSEFunctions.GetParticleShaderTexture(akEffectShader)
   PrintMessage("Particle Shader texture for " + self.GetFullID(akEffectShader) + ": " + textureName)
 EndEvent
-
 
 Event OnConsoleGetParticlePersistentCount(String EventName, String sArgument, Float fArgument, Form Sender)
   float QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15035,14 +14754,13 @@ Event OnConsoleGetParticlePersistentCount(String EventName, String sArgument, Fl
   EffectShader akEffectShader = self.FormFromSArgument(sArgument, 1) as EffectShader
   
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   float PersistentCount = PO3_SKSEFunctions.GetParticlePersistentCount(akEffectShader)
   PrintMessage("Persistent count for " + self.GetFullID(akEffectShader) + ": " + PersistentCount)
 EndEvent
-
 
 Event OnConsoleSetAddonModels(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15055,14 +14773,13 @@ Event OnConsoleSetAddonModels(String EventName, String sArgument, Float fArgumen
   Debris akDebris = self.FormFromSArgument(sArgument, 2) as Debris
   
   If akEffectShader == none || akDebris == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetAddonModels(akEffectShader, akDebris)
   PrintMessage("Set addon models for " + self.GetFullID(akEffectShader) + " to " + self.GetFullID(akDebris))
 EndEvent
-
 
 Event OnConsoleClearEffectShaderFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15075,14 +14792,13 @@ Event OnConsoleClearEffectShaderFlag(String EventName, String sArgument, Float f
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
   
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PO3_SKSEFunctions.ClearEffectShaderFlag(akEffectShader, aiFlag)
   PrintMessage("Clear flag " + aiFlag + " for " + self.GetFullID(akEffectShader))
 EndEvent
-
 
 Event OnConsoleSetEffectShaderFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15095,14 +14811,13 @@ Event OnConsoleSetEffectShaderFlag(String EventName, String sArgument, Float fAr
   Int aiFlag = self.IntFromSArgument(sArgument, 2)
   
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetEffectShaderFlag(akEffectShader, aiFlag)
   PrintMessage("Set flag " + aiFlag + " for " + self.GetFullID(akEffectShader))
 EndEvent
-
 
 Event OnConsoleSetMembraneColorKeyData(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15125,14 +14840,13 @@ Event OnConsoleSetMembraneColorKeyData(String EventName, String sArgument, Float
   aiColor[2] = aiColorB
   
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: Invalid arguments.")
+    PrintMessage("FATAL ERROR: Invalid arguments")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetMembraneColorKeyData(akEffectShader, aiColorKey, aiColor, afAlpha, afTime)
   PrintMessage("Set membrane color key " + aiColorKey + " data for " + self.GetFullID(akEffectShader) + " to ARGB(" + afAlpha + "," + aiColorR + "," + aiColorB + "," + aiColorB + " with time" + afTime)
 EndEvent
-
 
 Event OnConsoleSetMembraneFillTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15145,14 +14859,13 @@ Event OnConsoleSetMembraneFillTexture(String EventName, String sArgument, Float 
   String asTextureName = self.StringFromSArgument(sArgument, 2)
   
   If akEffectShader == none || asTextureName == ""
-    PrintMessage("FATAL ERROR: Invalid arguments.")
+    PrintMessage("FATAL ERROR: Invalid arguments")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetMembraneFillTexture(akEffectShader, asTextureName)
   PrintMessage("Set membrane fill texture for " + self.GetFullID(akEffectShader) + " to " + asTextureName)
 EndEvent
-
 
 Event OnConsoleSetMembraneHolesTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15165,14 +14878,13 @@ Event OnConsoleSetMembraneHolesTexture(String EventName, String sArgument, Float
   String asTextureName = self.StringFromSArgument(sArgument, 2)
   
   If akEffectShader == none || asTextureName == ""
-    PrintMessage("FATAL ERROR: Invalid arguments.")
+    PrintMessage("FATAL ERROR: Invalid arguments")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetMembraneHolesTexture(akEffectShader, asTextureName)
   PrintMessage("Set membrane Holes texture for " + self.GetFullID(akEffectShader) + " to " + asTextureName)
 EndEvent
-
 
 Event OnConsoleSetMembranePaletteTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15185,14 +14897,13 @@ Event OnConsoleSetMembranePaletteTexture(String EventName, String sArgument, Flo
   String asTextureName = self.StringFromSArgument(sArgument, 2)
   
   If akEffectShader == none || asTextureName == ""
-    PrintMessage("FATAL ERROR: Invalid arguments.")
+    PrintMessage("FATAL ERROR: Invalid arguments")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetMembranePaletteTexture(akEffectShader, asTextureName)
   PrintMessage("Set membrane Palette texture for " + self.GetFullID(akEffectShader) + " to " + asTextureName)
 EndEvent
-
 
 Event OnConsoleSetParticleColorKeyData(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15216,14 +14927,13 @@ Event OnConsoleSetParticleColorKeyData(String EventName, String sArgument, Float
 
   
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: Invalid arguments.")
+    PrintMessage("FATAL ERROR: Invalid arguments")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetParticleColorKeyData(akEffectShader, aiColorKey, aiColor, afAlpha, afTime)
   PrintMessage("Set particle color key " + aiColorKey + " data for " + self.GetFullID(akEffectShader) + " to ARGB(" + afAlpha + "," + aiColorR + "," + aiColorB + "," + aiColorB + " with time" + afTime)
 EndEvent
-
 
 Event OnConsoleSetParticlePaletteTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15236,14 +14946,13 @@ Event OnConsoleSetParticlePaletteTexture(String EventName, String sArgument, Flo
   String asTextureName = self.StringFromSArgument(sArgument, 2)
   
   If akEffectShader == none || asTextureName == ""
-    PrintMessage("FATAL ERROR: Invalid arguments.")
+    PrintMessage("FATAL ERROR: Invalid arguments")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetParticlePaletteTexture(akEffectShader, asTextureName)
   PrintMessage("Set Particle Palette texture for " + self.GetFullID(akEffectShader) + " to " + asTextureName)
 EndEvent
-
 
 Event OnConsoleSetParticlePersistentCount(String EventName, String sArgument, Float fArgument, Form Sender)
   float QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15256,14 +14965,13 @@ Event OnConsoleSetParticlePersistentCount(String EventName, String sArgument, Fl
   float afNewCount = self.FloatFromSArgument(sArgument, 2)
   
   If akEffectShader == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetParticlePersistentCount(akEffectShader, afNewCount)
   PrintMessage("Persistent count for " + self.GetFullID(akEffectShader) + " is now " + PO3_SKSEFunctions.GetParticlePersistentCount(akEffectShader))
 EndEvent
-
 
 Event OnConsoleSetParticleShaderTexture(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15276,14 +14984,13 @@ Event OnConsoleSetParticleShaderTexture(String EventName, String sArgument, Floa
   String asTextureName = self.StringFromSArgument(sArgument, 2)
   
   If akEffectShader == none || asTextureName == ""
-    PrintMessage("FATAL ERROR: Invalid arguments.")
+    PrintMessage("FATAL ERROR: Invalid arguments")
     Return
   EndIf
   
   PO3_SKSEFunctions.SetParticleShaderTexture(akEffectShader, asTextureName)
   PrintMessage("Set Particle Shader texture for " + self.GetFullID(akEffectShader) + " to " + asTextureName)
 EndEvent
-
 
 Event OnConsoleAddEffectItemToEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15296,13 +15003,12 @@ Event OnConsoleAddEffectItemToEnchantment(String EventName, String sArgument, Fl
   int aiIndex = self.IntFromSArgument(sArgument, 3)
   float afCost = self.FloatFromSArgument(sArgument, 4, 0.0)
   If akEnchantment == none || akEnchantmentToCopyFrom == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.AddEffectItemToEnchantment(akEnchantment, akEnchantmentToCopyFrom, aiIndex, afCost)
   PrintMessage("Added " + self.GetFullID(akEnchantmentToCopyFrom) + " to " + self.GetFullID(akEnchantment))
 EndEvent
-
 
 Event OnConsoleRemoveEffectItemFromEnchantment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15314,13 +15020,12 @@ Event OnConsoleRemoveEffectItemFromEnchantment(String EventName, String sArgumen
   Enchantment akEnchantmentToMatchFrom = self.FormFromSArgument(sArgument, 2) as Enchantment
   int aiIndex = self.IntFromSArgument(sArgument, 3)
   If akEnchantment == none || akEnchantmentToMatchFrom == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.RemoveEffectItemFromEnchantment(akEnchantment, akEnchantmentToMatchFrom, aiIndex)
   PrintMessage("Removed " + self.GetFullID(akEnchantmentToMatchFrom) + " from " + self.GetFullID(akEnchantment))
 EndEvent
-
 
 Event OnConsoleSetEnchantmentMagicEffect(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15332,13 +15037,12 @@ Event OnConsoleSetEnchantmentMagicEffect(String EventName, String sArgument, Flo
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 2) as MagicEffect
   int aiIndex = self.IntFromSArgument(sArgument, 3)
   If akEnchantment == none || akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.SetEnchantmentMagicEffect(akEnchantment, akMagicEffect, aiIndex)
   PrintMessage("Set " + self.GetFullID(akMagicEffect) + " as magic effect #" + aiIndex + " of " + self.GetFullID(akEnchantment))
 EndEvent
-
 
 Event OnConsoleAddEffectItemToSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15351,13 +15055,12 @@ Event OnConsoleAddEffectItemToSpell(String EventName, String sArgument, Float fA
   int aiIndex = self.IntFromSArgument(sArgument, 3)
   float afCost = self.FloatFromSArgument(sArgument, 4, 0.0)
   If akSpell == none || akSpellToCopyFrom == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.AddEffectItemToSpell(akSpell, akSpellToCopyFrom, aiIndex, afCost)
   PrintMessage("Added " + self.GetFullID(akSpellToCopyFrom) + " to " + self.GetFullID(akSpell))
 EndEvent
-
 
 Event OnConsoleRemoveEffectItemFromSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15369,7 +15072,7 @@ Event OnConsoleRemoveEffectItemFromSpell(String EventName, String sArgument, Flo
   Spell akSpellToMatchFrom = self.FormFromSArgument(sArgument, 2) as Spell
   int aiIndex = self.IntFromSArgument(sArgument, 3)
   If akSpell == none || akSpellToMatchFrom == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.RemoveEffectItemFromSpell(akSpell, akSpellToMatchFrom, aiIndex)
@@ -15386,16 +15089,15 @@ Event OnConsoleGetFurnitureType(String EventName, String sArgument, Float fArgum
   EndIf
   Furniture akFurniture = self.FormFromSArgument(sArgument, 1) as Furniture
   If akFurniture == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
-  PrintMessage("Furniture type for  " + self.GetFullID(akFurniture) + " is " + PO3_SKSEFunctions.GetFurnitureType(akFurniture) + ".")
+  PrintMessage("Furniture type for  " + self.GetFullID(akFurniture) + " is " + PO3_SKSEFunctions.GetFurnitureType(akFurniture))
 EndEvent
-
 
 Event OnConsoleGetGoldValue(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetGoldValue [<Form akForm = GetSelectedBase()>].")
+  PrintMessage("Format: GetGoldValue [<Form akForm = GetSelectedBase()>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -15407,17 +15109,16 @@ Event OnConsoleGetGoldValue(String EventName, String sArgument, float fArgument,
     akForm = self.FormFromSArgument(sArgument, 1) as Form
   EndIf
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   GoldValue = akForm.GetGoldValue() ; 1 is first argument, which is second term in sArgument
-  PrintMessage("Gold value of " + self.GetFullID(akForm) + " is " + GoldValue + ".")
+  PrintMessage("Gold value of " + self.GetFullID(akForm) + " is " + GoldValue)
 EndEvent
-
 
 Event OnConsoleSetGoldValue(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SetGoldValue [<Form akForm = GetSelectedBase()>] <int aiGoldValue>.")
+  PrintMessage("Format: SetGoldValue [<Form akForm = GetSelectedBase()>] <int aiGoldValue>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -15431,13 +15132,12 @@ Event OnConsoleSetGoldValue(String EventName, String sArgument, float fArgument,
     aiGoldValue = self.IntFromSArgument(sArgument, 2)
   EndIf
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akForm.SetGoldValue(aiGoldValue) ; 1 is first argument, which is second term in sArgument
-  PrintMessage("Gold value of " + self.GetFullID(akForm) + " set to " + aiGoldValue + ".")
+  PrintMessage("Gold value of " + self.GetFullID(akForm) + " set to " + aiGoldValue)
 EndEvent
-
 
 Event OnConsoleKnockAreaEffect(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15458,12 +15158,11 @@ Event OnConsoleKnockAreaEffect(String EventName, String sArgument, Float fArgume
     afRadius = FloatFromSArgument(sArgument, 3)
   EndIf
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf 
   akRef.KnockAreaEffect(afMagnitude, afRadius)
 EndEvent
-
 
 Event OnConsoleResetReference(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15479,14 +15178,13 @@ Event OnConsoleResetReference(String EventName, String sArgument, Float fArgumen
   EndIf
 
   If akRef == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   akRef.Reset(akTarget)
   PrintMessage("ResetReference applied to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleDeleteReference(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15498,14 +15196,13 @@ Event OnConsoleDeleteReference(String EventName, String sArgument, Float fArgume
   ObjectReference akRef = self.FormFromSArgument(sArgument, 1) as ObjectReference
 
   If akRef == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   akRef.Delete()
   PrintMessage("ORDelete applied to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleDisableReference(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15518,14 +15215,13 @@ Event OnConsoleDisableReference(String EventName, String sArgument, Float fArgum
   bool abFadeOut = self.BoolFromSArgument(sArgument, 2, false)
 
   If akRef == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   akRef.Disable(abFadeOut)
   PrintMessage("ORDisable applied to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsolePlayAnimation(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15538,14 +15234,13 @@ Event OnConsolePlayAnimation(String EventName, String sArgument, Float fArgument
   string asAnimation = self.StringFromSArgument(sArgument, 2)
 
   If akRef == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   bool result = akRef.PlayAnimation(asAnimation)
   PrintMessage("ORPlayAnimation: " + result)
 EndEvent
-
 
 Event OnConsolePlayAnimationAndWait(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15559,14 +15254,13 @@ Event OnConsolePlayAnimationAndWait(String EventName, String sArgument, Float fA
   string asEventName = self.StringFromSArgument(sArgument, 3)
 
   If akRef == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   bool result = akRef.PlayAnimationAndWait(asAnimation, asEventName)
   PrintMessage("ORPlayAnimationAndWait: " + result)
 EndEvent
-
 
 Event OnConsolePlayGamebryoAnimation(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15581,14 +15275,13 @@ Event OnConsolePlayGamebryoAnimation(String EventName, String sArgument, Float f
   float afEaseInTime = self.FloatFromSArgument(sArgument, 4, 0.0)
 
   If akRef == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   bool result = akRef.PlayGamebryoAnimation(asAnimation, abStartOver, afEaseInTime)
   PrintMessage("ORPlayGamebryoAnimation: " + result)
 EndEvent
-
 
 Event OnConsolePlayImpactEffect(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15608,14 +15301,13 @@ Event OnConsolePlayImpactEffect(String EventName, String sArgument, Float fArgum
   bool abUseNodeLocalRotation = self.BoolFromSArgument(sArgument, 9, false)
 
   If akRef == none || akImpactEffect == none
-    PrintMessage("FATAL ERROR: ObjectReference or ImpactDataSet retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference or ImpactDataSet retrieval failed")
     Return
   EndIf
 
   bool result = akRef.PlayImpactEffect(akImpactEffect, asNodeName, afPickDirX, afPickDirY, afPickDirZ, afPickLength, abApplyNodeRotation, abUseNodeLocalRotation)
   PrintMessage("ORPlayImpactEffect: " + result)
 EndEvent
-
 
 Event OnConsolePlaySyncedAnimationSS(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15630,14 +15322,13 @@ Event OnConsolePlaySyncedAnimationSS(String EventName, String sArgument, Float f
   string asAnimation2 = self.StringFromSArgument(sArgument, 4)
 
   If akRef == none || akObj2 == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   bool result = akRef.PlaySyncedAnimationSS(asAnimation1, akObj2, asAnimation2)
   PrintMessage("ORPlaySyncedAnimationSS: " + result)
 EndEvent
-
 
 Event OnConsolePlaySyncedAnimationAndWaitSS(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15654,14 +15345,13 @@ Event OnConsolePlaySyncedAnimationAndWaitSS(String EventName, String sArgument, 
   string asEvent2 = self.StringFromSArgument(sArgument, 6)
 
   If akRef == none || akObj2 == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   bool result = akRef.PlaySyncedAnimationAndWaitSS(asAnimation1, asEvent1, akObj2, asAnimation2, asEvent2)
   PrintMessage("ORPlaySyncedAnimationAndWaitSS: " + result)
 EndEvent
-
 
 Event OnConsolePushActorAway(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15675,14 +15365,13 @@ Event OnConsolePushActorAway(String EventName, String sArgument, Float fArgument
   float aiKnockbackForce = self.FloatFromSArgument(sArgument, 3)
 
   If akRef == none || akActorToPush == none
-    PrintMessage("FATAL ERROR: ObjectReference or Actor retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference or Actor retrieval failed")
     Return
   EndIf
 
   akRef.PushActorAway(akActorToPush, aiKnockbackForce)
   PrintMessage("ORPushActorAway applied to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleSetAnimationVariableBool(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15696,14 +15385,13 @@ Event OnConsoleSetAnimationVariableBool(String EventName, String sArgument, Floa
   bool abNewValue = self.BoolFromSArgument(sArgument, 3)
 
   If akRef == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   akRef.SetAnimationVariableBool(arVariableName, abNewValue)
   PrintMessage("ORSetAnimationVariableBool applied to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleSetAnimationVariableInt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15717,14 +15405,13 @@ Event OnConsoleSetAnimationVariableInt(String EventName, String sArgument, Float
   int aiNewValue = self.IntFromSArgument(sArgument, 3)
 
   If akRef == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   akRef.SetAnimationVariableInt(arVariableName, aiNewValue)
   PrintMessage("ORSetAnimationVariableInt applied to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleSetAnimationVariableFloat(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15738,14 +15425,13 @@ Event OnConsoleSetAnimationVariableFloat(String EventName, String sArgument, Flo
   float afNewValue = self.FloatFromSArgument(sArgument, 3)
 
   If akRef == none
-    PrintMessage("FATAL ERROR: ObjectReference retrieval failed.")
+    PrintMessage("FATAL ERROR: ObjectReference retrieval failed")
     Return
   EndIf
 
   akRef.SetAnimationVariableFloat(arVariableName, afNewValue)
   PrintMessage("ORSetAnimationVariableFloat applied to " + self.GetFullID(akRef))
 EndEvent
-
 
 Event OnConsoleApplyHavokImpulse(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -15761,7 +15447,7 @@ Event OnConsoleApplyHavokImpulse(String EventName, String sArgument, Float fArgu
   float afMagnitude = self.FloatFromSArgument(sArgument, 5)
 
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -15769,10 +15455,9 @@ Event OnConsoleApplyHavokImpulse(String EventName, String sArgument, Float fArgu
   PrintMessage("ApplyHavokImpulse applied to " + self.GetFullID(akRef))
 EndEvent
 
-
 Event OnConsoleNodeHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: BodyMorphHelp [<string asSearchString>].")
+  PrintMessage("Format: BodyMorphHelp [<string asSearchString>]")
 
   PrintMessage("XPMSE SKELETON MORPH NAMES")
   PrintMessage("===================================")
@@ -15918,14 +15603,14 @@ Event OnConsoleNodeHelp(String EventName, String sArgument, Float fArgument, For
   EndWhile
 
   If !found
-    PrintMessage("No matching node names found.")
+    PrintMessage("No matching node names found")
   EndIf
   PrintMessage("===================================")
 EndEvent
   
 Event OnConsoleMoveToNode(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: MoveToNode [<ObjectReference akRef>] <ObjectReference akTarget> <string asNodeName>.")
+  PrintMessage("Format: MoveToNode [<ObjectReference akRef>] <ObjectReference akTarget> <string asNodeName>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -15942,7 +15627,7 @@ Event OnConsoleMoveToNode(String EventName, String sArgument, Float fArgument, F
     asNodeName = self.StringFromSArgument(sArgument, 3)
   EndIf
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   If !NetImmerse.HasNode(akTarget, asNodeName, false)
@@ -15950,13 +15635,12 @@ Event OnConsoleMoveToNode(String EventName, String sArgument, Float fArgument, F
     Return
   EndIf
   akRef.MoveToNode(akTarget, asNodeName)
-  PrintMessage(self.GetFullID(akRef) + " was moved to " + self.GetFullID(akTarget) + "'s " + asNodeName + "node.")
+  PrintMessage(self.GetFullID(akRef) + " was moved to " + self.GetFullID(akTarget) + "'s " + asNodeName + "node")
 EndEvent
-
 
 Event OnConsoleBodyMorphHelp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: BodyMorphHelp [<string asSearchString>].")
+  PrintMessage("Format: BodyMorphHelp [<string asSearchString>]")
 
   PrintMessage("CBBE BODY MORPH NAMES")
   PrintMessage("===================================")
@@ -16292,7 +15976,7 @@ Event OnConsoleBodyMorphHelp(String EventName, String sArgument, Float fArgument
   Endwhile
 
   if !found
-    PrintMessage("No matching CBBE morph names found.")
+    PrintMessage("No matching CBBE morph names found")
   EndIf
   PrintMessage("===================================")
   PrintMessage("HIMBO MORPH NAMES")
@@ -16306,11 +15990,10 @@ Event OnConsoleBodyMorphHelp(String EventName, String sArgument, Float fArgument
   Endwhile
 
   if !found
-    PrintMessage("No matching HIMBO morph names found.")
+    PrintMessage("No matching HIMBO morph names found")
   endif
   PrintMessage("===================================")
 EndEvent
-
 
 Event OnConsoleGetBodyMorph(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16321,13 +16004,12 @@ Event OnConsoleGetBodyMorph(String EventName, String sArgument, Float fArgument,
   ObjectReference akRef = GetSelectedReference()
   string asMorphName = self.StringFromSArgument(sArgument, 1)
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   float bodyMorph = NIOverride.GetMorphValue(akRef, asMorphName)
   PrintMessage("Body morph " + asMorphName + " for " + self.GetFullID(akRef) + " is " + bodyMorph)
 EndEvent
-
 
 Event OnConsoleSetBodyMorph(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16339,13 +16021,12 @@ Event OnConsoleSetBodyMorph(String EventName, String sArgument, Float fArgument,
   string asMorphName = self.StringFromSArgument(sArgument, 1)
   float afValue = self.FloatFromSArgument(sArgument, 2)
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   NIOverride.SetMorphValue(akRef, asMorphName, afValue)
   PrintMessage("Set body morph " + asMorphName + " for " + self.GetFullID(akRef) + " to " + afValue)
 EndEvent
-
 
 Event OnConsoleGetWornItemID(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16357,13 +16038,12 @@ Event OnConsoleGetWornItemID(String EventName, String sArgument, Float fArgument
   int aiSlot = IntFromSArgument(sArgument, 1)
   int SlotMask = Armor.GetMaskForSlot(aiSlot)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int WornItemID = akActor.GetWornItemID(SlotMask)
   PrintMessage("Worn item ID in slot " + aiSlot + " for " + self.GetFullID(akActor) + " is " + WornItemID)
 EndEvent
-
 
 Event OnConsoleGetABGiftFilter(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16376,13 +16056,12 @@ Event OnConsoleGetABGiftFilter(String EventName, String sArgument, Float fArgume
     akActorbase = self.FormFromSArgument(sArgument, 1) as Actorbase
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("Gift filter of " + self.GetFullID(akActorBase) + " is " + self.GetFullID(akActorbase.GetGiftFilter()))
 EndEvent
-
 
 Event OnConsoleSendTrespassAlarm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16393,13 +16072,12 @@ Event OnConsoleSendTrespassAlarm(String EventName, String sArgument, Float fArgu
   Actor akInformant = ConsoleUtil.GetSelectedReference() as Actor
   Actor akTrespasser = FormFromSArgument(sArgument, 1) as Actor
   If akInformant == none || akTrespasser == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akInformant.SendTrespassAlarm(akTrespasser)
   PrintMessage("Sent trespass alarm for " + self.GetFullID(akTrespasser) + " via " + self.GetFullID(akInformant))
 EndEvent
-
 
 Event OnConsoleClearArrested(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16409,13 +16087,12 @@ Event OnConsoleClearArrested(String EventName, String sArgument, Float fArgument
   EndIf
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ClearArrested()
   PrintMessage("Cleared arrest for " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleClearExpressionOverride(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16425,13 +16102,12 @@ Event OnConsoleClearExpressionOverride(String EventName, String sArgument, Float
   EndIf
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ClearExpressionOverride()
   PrintMessage("Cleared expression override for " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleClearExtraArrows(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16441,13 +16117,12 @@ Event OnConsoleClearExtraArrows(String EventName, String sArgument, Float fArgum
   EndIf
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ClearExtraArrows()
   PrintMessage("Cleared extra arrows from " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleClearKeepOffsetFromActor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16457,13 +16132,12 @@ Event OnConsoleClearKeepOffsetFromActor(String EventName, String sArgument, Floa
   EndIf
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ClearKeepOffsetFromActor()
   PrintMessage("Cleared offset from actor for " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleClearLookAt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16473,13 +16147,12 @@ Event OnConsoleClearLookAt(String EventName, String sArgument, Float fArgument, 
   EndIf
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ClearLookAt()
   PrintMessage("Cleared look-at settings for " + self.GetFullID(akActor))
 EndEvent
-
 
 Event OnConsoleOpenInventory(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16490,13 +16163,12 @@ Event OnConsoleOpenInventory(String EventName, String sArgument, Float fArgument
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   bool abForceOpen = BoolFromSArgument(sArgument, 1, false)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.OpenInventory(abForceOpen)
-  PrintMessage("Opening inventory for " + self.GetFullID(akActor) + IfElse(abForceOpen, " with force.", "."))
+  PrintMessage("Opening inventory for " + self.GetFullID(akActor) + IfElse(abForceOpen, " with force.", ""))
 EndEvent
-
 
 Event OnConsoleForceMovementSpeed(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16511,13 +16183,12 @@ Event OnConsoleForceMovementSpeed(String EventName, String sArgument, Float fArg
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   float afSpeedMult = FloatFromSArgument(sArgument, 1)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ForceMovementSpeed(afSpeedMult)
   PrintMessage("Forcing movement speed of " + self.GetFullID(akActor) + " to " + afSpeedMult)
 EndEvent
-
 
 Event OnConsoleForceMovementRotationSpeed(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16534,7 +16205,7 @@ Event OnConsoleForceMovementRotationSpeed(String EventName, String sArgument, Fl
   float afYMult = FloatFromSArgument(sArgument, 2, 0.0)
   float afZMult = FloatFromSArgument(sArgument, 3, 0.0)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ForceMovementRotationSpeed(afXMult, afYMult, afZMult)
@@ -16543,7 +16214,6 @@ Event OnConsoleForceMovementRotationSpeed(String EventName, String sArgument, Fl
   PrintMessage("-  Y: " + afYMult)
   PrintMessage("-  Z: " + afZMult)
 EndEvent
-
 
 Event OnConsoleForceMovementSpeedRamp(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16559,13 +16229,12 @@ Event OnConsoleForceMovementSpeedRamp(String EventName, String sArgument, Float 
   float afSpeedMult = FloatFromSArgument(sArgument, 1)
   float afRampTime = FloatFromSArgument(sArgument, 2, 0.1)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActor.ForceMovementSpeedRamp(afSpeedMult, afRampTime)
-  PrintMessage("Forcing movement speed of " + self.GetFullID(akActor) + " to " + afSpeedMult + " ramping over " + afRampTime + " seconds.")
+  PrintMessage("Forcing movement speed of " + self.GetFullID(akActor) + " to " + afSpeedMult + " ramping over " + afRampTime + " seconds")
 EndEvent
-
 
 Event OnConsoleScaleObject3D(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16577,13 +16246,12 @@ Event OnConsoleScaleObject3D(String EventName, String sArgument, Float fArgument
   String asNodeName = StringFromSArgument(sArgument, 1)
   float afScale = FloatFromSArgument(sArgument, 2, 1)
   If akRef == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.ScaleObject3D(akRef, asNodeName, afScale)
   PrintMessage("Setting scale of  " + self.GetFullID(akRef) + "'s " + asNodeName + " node to " + afScale)
 EndEvent
-
 
 Event OnConsoleGetActorbaseDeadCount(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16596,13 +16264,12 @@ Event OnConsoleGetActorbaseDeadCount(String EventName, String sArgument, Float f
     akActorbase = self.FormFromSArgument(sArgument, 1) as Actorbase
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   PrintMessage("Dead count  of " + self.GetFullID(akActorBase) + " is " + akActorbase.GetDeadCount())
 EndEvent
-
 
 Event OnConsoleGetActorbaseSex(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16615,7 +16282,7 @@ Event OnConsoleGetActorbaseSex(String EventName, String sArgument, Float fArgume
     akActorbase = self.FormFromSArgument(sArgument, 1) as Actorbase
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int sex = akActorbase.GetSex()
@@ -16630,7 +16297,6 @@ Event OnConsoleGetActorbaseSex(String EventName, String sArgument, Float fArgume
   
   PrintMessage("Sex of " + self.GetFullID(akActorBase) + " is " + sexString + Paren(sex))
 EndEvent
-
 
 Event OnConsoleSetActorbaseInvulnerable(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16647,17 +16313,16 @@ Event OnConsoleSetActorbaseInvulnerable(String EventName, String sArgument, Floa
     abInvulnerable = BoolFromSArgument(sArgument, 2, true)
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akActorbase.SetInvulnerable(abInvulnerable)
   If abInvulnerable
-    PrintMessage(GetFullID(akActorbase) + " is invulnerable.")
+    PrintMessage(GetFullID(akActorbase) + " is invulnerable")
   Else
-    PrintMessage(GetFullID(akActorbase) + " is not invulnerable.")
+    PrintMessage(GetFullID(akActorbase) + " is not invulnerable")
   EndIf
 EndEvent
-
 
 Event OnConsoleGetKeyword(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16674,7 +16339,6 @@ Event OnConsoleGetKeyword(String EventName, String sArgument, Float fArgument, F
   PrintMessage("Keyword: " + self.GetFullID(result))
 EndEvent
 
-
 Event OnConsoleGetActorbaseVoiceType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetActorbaseVoiceType([Actorbase akActorbase = GetSelectedReference().GetActorBase()])")
@@ -16683,14 +16347,13 @@ Event OnConsoleGetActorbaseVoiceType(String EventName, String sArgument, Float f
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   VoiceType akVoiceType =  akActorbase.GetVoiceType()
   PrintMessage("voice type of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akVoiceType))
 EndEvent
-
 
 Event OnConsoleSetActorbaseVoiceType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16701,7 +16364,7 @@ Event OnConsoleSetActorbaseVoiceType(String EventName, String sArgument, Float f
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   VoiceType akNewTXST = self.FormFromSArgument(sArgument, 1) as VoiceType
   If akActorbase == none || akNewTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("voice type of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akActorbase.GetVoiceType()))
@@ -16714,7 +16377,6 @@ Event OnConsoleSetActorbaseVoiceType(String EventName, String sArgument, Float f
   EndIf
 EndEvent
 
-
 Event OnConsoleGetActorbaseCombatStyle(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetActorbaseCombatStyle([Actorbase akActorbase = GetSelectedReference().GetActorBase()])")
@@ -16723,14 +16385,13 @@ Event OnConsoleGetActorbaseCombatStyle(String EventName, String sArgument, Float
   EndIf
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   CombatStyle akCombatStyle =  akActorbase.GetCombatStyle()
   PrintMessage("combat style of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akCombatStyle))
 EndEvent
-
 
 Event OnConsoleSetActorbaseCombatStyle(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16741,7 +16402,7 @@ Event OnConsoleSetActorbaseCombatStyle(String EventName, String sArgument, Float
   Actorbase akActorbase = (ConsoleUtil.GetSelectedReference() as Actor).GetActorBase()
   CombatStyle akNewTXST = self.FormFromSArgument(sArgument, 1) as CombatStyle
   If akActorbase == none || akNewTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PrintMessage("combat style of " + self.GetFullID(akActorbase) + " is " + self.GetFullID(akActorbase.GetCombatStyle()))
@@ -16754,10 +16415,9 @@ Event OnConsoleSetActorbaseCombatStyle(String EventName, String sArgument, Float
   EndIf
 EndEvent
 
-
 Event OnConsoleGetActorbaseWeight(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetActorbaseWeight [<Actorbase>].")
+  PrintMessage("Format: GetActorbaseWeight [<Actorbase>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -16769,17 +16429,16 @@ Event OnConsoleGetActorbaseWeight(String EventName, String sArgument, float fArg
     akActorbase = self.FormFromSArgument(sArgument, 1) as Actorbase
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   Weight = akActorbase.GetWeight() ; 1 is first argument, which is second term in sArgument
-  PrintMessage("Weight of " + self.GetFullID(akActorbase) + " is " + Weight as String + ".")
+  PrintMessage("Weight of " + self.GetFullID(akActorbase) + " is " + Weight as String)
 EndEvent
-
 
 Event OnConsoleSetActorbaseWeight(String EventName, String sArgument, float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: SetActorbaseWeight [<Actorbase>] <float Weight>.")
+  PrintMessage("Format: SetActorbaseWeight [<Actorbase>] <float Weight>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -16793,13 +16452,12 @@ Event OnConsoleSetActorbaseWeight(String EventName, String sArgument, float fArg
     Weight = self.FloatFromSArgument(sArgument, 2) as float
   EndIf
   If akActorbase == none
-    PrintMessage("FATAL ERROR: FormID retrieval error.")
+    PrintMessage("FATAL ERROR: FormID retrieval error")
     Return
   EndIf
   akActorbase.SetWeight(Weight) ; 1 is first argument, which is second term in sArgument
-  PrintMessage("Weight of " + self.GetFullID(akActorbase) + " set to " + Weight as String + ".")
+  PrintMessage("Weight of " + self.GetFullID(akActorbase) + " set to " + Weight as String)
 EndEvent
-
 
 Event OnConsoleGetActorDialogueTarget(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16810,12 +16468,11 @@ Event OnConsoleGetActorDialogueTarget(String EventName, String sArgument, Float 
   Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
   ObjectReference Ref = akActor.GetDialogueTarget()
   If akActor == none
-    PrintMessage("No dialogue target found.")
+    PrintMessage("No dialogue target found")
     Return
   EndIf
   PrintMessage(self.GetFullID(akActor) + " is currently in dialogue with " + self.GetFullID(Ref))
 EndEvent
-
 
 Event OnConsoleSetCameraTarget(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -16825,17 +16482,16 @@ Event OnConsoleSetCameraTarget(String EventName, String sArgument, Float fArgume
   EndIf
   Actor akTarget = ConsoleUtil.GetSelectedReference() as Actor
   If akTarget == none
-    PrintMessage("No dialogue target found.")
+    PrintMessage("No dialogue target found")
     Return
   EndIf
   Game.SetCameraTarget(akTarget)
-  PrintMessage(self.GetFullID(akTarget) + " set as camera target.")
+  PrintMessage(self.GetFullID(akTarget) + " set as camera target")
 EndEvent
-
 
 Event OnConsoleGetActorFactions(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetActorFactions [<Actor akActor>].")
+  PrintMessage("Format: GetActorFactions [<Actor akActor>]")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -16850,9 +16506,9 @@ Event OnConsoleGetActorFactions(String EventName, String sArgument, Float fArgum
   int i = 0
   int L = result.Length
   If L > 0
-    PrintMessage("Found " + L + " factions.")
+    PrintMessage("Found " + L + " factions")
   Else
-    PrintMessage("No faction found.")
+    PrintMessage("No faction found")
     Return
   EndIf
   While i < L
@@ -16862,10 +16518,9 @@ Event OnConsoleGetActorFactions(String EventName, String sArgument, Float fArgum
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetFactionInformation(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format: GetFactionInformation [<Faction akFaction>] <bool abStats = true> <bool abReactions = true>.")
+  PrintMessage("Format: GetFactionInformation [<Faction akFaction>] <bool abStats = true> <bool abReactions = true>")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -17036,7 +16691,6 @@ Event OnConsoleGetFactionInformation(String EventName, String sArgument, Float f
   PrintMessage("    - Daedra: " + akFaction.GetReaction(DaedraFaction))
 EndEvent
 
-
 Event OnConsoleGetMagicEffectAssociatedForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectForm(MagicEffect akMagicEffect)")
@@ -17046,7 +16700,7 @@ Event OnConsoleGetMagicEffectAssociatedForm(String EventName, String sArgument, 
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -17055,7 +16709,6 @@ Event OnConsoleGetMagicEffectAssociatedForm(String EventName, String sArgument, 
   PrintMessage("Form of " + self.GetFullID(akMagicEffect) + " is " + self.GetFullID(result))
     
 EndEvent
-
 
 Event OnConsoleSetMagicEffectForm(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17067,7 +16720,7 @@ Event OnConsoleSetMagicEffectForm(String EventName, String sArgument, Float fArg
   Form akForm = self.FormFromSArgument(sArgument, 2) as Form
 
   If akMagicEffect == none || akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -17084,7 +16737,6 @@ Event OnConsoleSetMagicEffectForm(String EventName, String sArgument, Float fArg
     
 EndEvent
 
-
 Event OnConsoleGetHazardArt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetHazardArt(Hazard akHazard)")
@@ -17095,14 +16747,13 @@ Event OnConsoleGetHazardArt(String EventName, String sArgument, Float fArgument,
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   String result = PO3_SKSEFunctions.GetHazardArt(akHazard)
   PrintMessage("GetHazardArt: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardIMOD(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17114,14 +16765,13 @@ Event OnConsoleGetHazardIMOD(String EventName, String sArgument, Float fArgument
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   ImageSpaceModifier result = PO3_SKSEFunctions.GetHazardIMOD(akHazard)
   PrintMessage("GetHazardIMOD: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardIMODRadius(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17133,14 +16783,13 @@ Event OnConsoleGetHazardIMODRadius(String EventName, String sArgument, Float fAr
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   float result = PO3_SKSEFunctions.GetHazardIMODRadius(akHazard)
   PrintMessage("GetHazardIMODRadius: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardIPDS(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17152,14 +16801,13 @@ Event OnConsoleGetHazardIPDS(String EventName, String sArgument, Float fArgument
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   ImpactDataSet result = PO3_SKSEFunctions.GetHazardIPDS(akHazard)
   PrintMessage("GetHazardIPDS: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardLifetime(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17171,14 +16819,13 @@ Event OnConsoleGetHazardLifetime(String EventName, String sArgument, Float fArgu
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   float result = PO3_SKSEFunctions.GetHazardLifetime(akHazard)
   PrintMessage("GetHazardLifetime: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardLight(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17190,14 +16837,13 @@ Event OnConsoleGetHazardLight(String EventName, String sArgument, Float fArgumen
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   Light result = PO3_SKSEFunctions.GetHazardLight(akHazard)
   PrintMessage("GetHazardLight: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardLimit(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17209,14 +16855,13 @@ Event OnConsoleGetHazardLimit(String EventName, String sArgument, Float fArgumen
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   int result = PO3_SKSEFunctions.GetHazardLimit(akHazard)
   PrintMessage("GetHazardLimit: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardRadius(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17228,14 +16873,13 @@ Event OnConsoleGetHazardRadius(String EventName, String sArgument, Float fArgume
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   float result = PO3_SKSEFunctions.GetHazardRadius(akHazard)
   PrintMessage("GetHazardRadius: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardSound(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17247,14 +16891,13 @@ Event OnConsoleGetHazardSound(String EventName, String sArgument, Float fArgumen
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   SoundDescriptor result = PO3_SKSEFunctions.GetHazardSound(akHazard)
   PrintMessage("GetHazardSound: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17266,14 +16909,13 @@ Event OnConsoleGetHazardSpell(String EventName, String sArgument, Float fArgumen
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   Spell result = PO3_SKSEFunctions.GetHazardSpell(akHazard)
   PrintMessage("GetHazardSpell: " + result)
 EndEvent
-
 
 Event OnConsoleGetHazardTargetInterval(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17285,14 +16927,13 @@ Event OnConsoleGetHazardTargetInterval(String EventName, String sArgument, Float
   Hazard akHazard = self.FormFromSArgument(sArgument, 1) as Hazard
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   float result = PO3_SKSEFunctions.GetHazardTargetInterval(akHazard)
   PrintMessage("GetHazardTargetInterval: " + result)
 EndEvent
-
 
 Event OnConsoleIsHazardFlagSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17305,14 +16946,13 @@ Event OnConsoleIsHazardFlagSet(String EventName, String sArgument, Float fArgume
   int aiFlag = self.IntFromSArgument(sArgument, 2)
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   bool result = PO3_SKSEFunctions.IsHazardFlagSet(akHazard, aiFlag)
   PrintMessage("IsHazardFlagSet: " + result)
 EndEvent
-
 
 Event OnConsoleClearHazardFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17325,14 +16965,13 @@ Event OnConsoleClearHazardFlag(String EventName, String sArgument, Float fArgume
   int aiFlag = self.IntFromSArgument(sArgument, 2)
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.ClearHazardFlag(akHazard, aiFlag)
   PrintMessage("ClearHazardFlag applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardArt(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17345,14 +16984,13 @@ Event OnConsoleSetHazardArt(String EventName, String sArgument, Float fArgument,
   String asPath = self.StringFromSArgument(sArgument, 2)
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardArt(akHazard, asPath)
   PrintMessage("SetHazardArt applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardFlag(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17365,14 +17003,13 @@ Event OnConsoleSetHazardFlag(String EventName, String sArgument, Float fArgument
   int aiFlag = self.IntFromSArgument(sArgument, 2)
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardFlag(akHazard, aiFlag)
   PrintMessage("SetHazardFlag applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardIMOD(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17385,14 +17022,13 @@ Event OnConsoleSetHazardIMOD(String EventName, String sArgument, Float fArgument
   ImageSpaceModifier akIMOD = self.FormFromSArgument(sArgument, 2) as ImageSpaceModifier
 
   If akHazard == none || akIMOD == none
-    PrintMessage("FATAL ERROR: Hazard or IMOD retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard or IMOD retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardIMOD(akHazard, akIMOD)
   PrintMessage("SetHazardIMOD applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardIMODRadius(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17405,14 +17041,13 @@ Event OnConsoleSetHazardIMODRadius(String EventName, String sArgument, Float fAr
   float afRadius = self.FloatFromSArgument(sArgument, 2)
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardIMODRadius(akHazard, afRadius)
   PrintMessage("SetHazardIMODRadius applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardIPDS(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17425,14 +17060,13 @@ Event OnConsoleSetHazardIPDS(String EventName, String sArgument, Float fArgument
   ImpactDataSet akIPDS = self.FormFromSArgument(sArgument, 2) as ImpactDataSet
 
   If akHazard == none || akIPDS == none
-    PrintMessage("FATAL ERROR: Hazard or IPDS retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard or IPDS retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardIPDS(akHazard, akIPDS)
   PrintMessage("SetHazardIPDS applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardLifetime(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17445,14 +17079,13 @@ Event OnConsoleSetHazardLifetime(String EventName, String sArgument, Float fArgu
   float afLifetime = self.FloatFromSArgument(sArgument, 2)
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardLifetime(akHazard, afLifetime)
   PrintMessage("SetHazardLifetime applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardLight(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17465,14 +17098,13 @@ Event OnConsoleSetHazardLight(String EventName, String sArgument, Float fArgumen
   Light akLight = self.FormFromSArgument(sArgument, 2) as Light
 
   If akHazard == none || akLight == none
-    PrintMessage("FATAL ERROR: Hazard or Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard or Light retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardLight(akHazard, akLight)
   PrintMessage("SetHazardLight applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardLimit(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17485,14 +17117,13 @@ Event OnConsoleSetHazardLimit(String EventName, String sArgument, Float fArgumen
   int aiLimit = self.IntFromSArgument(sArgument, 2)
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardLimit(akHazard, aiLimit)
   PrintMessage("SetHazardLimit applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardRadius(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17505,14 +17136,13 @@ Event OnConsoleSetHazardRadius(String EventName, String sArgument, Float fArgume
   float afRadius = self.FloatFromSArgument(sArgument, 2)
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardRadius(akHazard, afRadius)
   PrintMessage("SetHazardRadius applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardSound(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17525,14 +17155,13 @@ Event OnConsoleSetHazardSound(String EventName, String sArgument, Float fArgumen
   SoundDescriptor akSound = self.FormFromSArgument(sArgument, 2) as SoundDescriptor
 
   If akHazard == none || akSound == none
-    PrintMessage("FATAL ERROR: Hazard or Sound retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard or Sound retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardSound(akHazard, akSound)
   PrintMessage("SetHazardSound applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardSpell(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17545,14 +17174,13 @@ Event OnConsoleSetHazardSpell(String EventName, String sArgument, Float fArgumen
   Spell akSpell = self.FormFromSArgument(sArgument, 2) as Spell
 
   If akHazard == none || akSpell == none
-    PrintMessage("FATAL ERROR: Hazard or Spell retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard or Spell retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardSpell(akHazard, akSpell)
   PrintMessage("SetHazardSpell applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleSetHazardTargetInterval(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17565,14 +17193,13 @@ Event OnConsoleSetHazardTargetInterval(String EventName, String sArgument, Float
   float afInterval = self.FloatFromSArgument(sArgument, 2)
 
   If akHazard == none
-    PrintMessage("FATAL ERROR: Hazard retrieval failed.")
+    PrintMessage("FATAL ERROR: Hazard retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetHazardTargetInterval(akHazard, afInterval)
   PrintMessage("SetHazardTargetInterval applied to " + akHazard)
 EndEvent
-
 
 Event OnConsoleGetLightColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17584,14 +17211,13 @@ Event OnConsoleGetLightColor(String EventName, String sArgument, Float fArgument
   Light akLight = self.FormFromSArgument(sArgument, 1) as Light
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   ColorForm result = PO3_SKSEFunctions.GetLightColor(akLight)
   PrintMessage("GetLightColor: " + result)
 EndEvent
-
 
 Event OnConsoleGetLightFade(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17603,14 +17229,13 @@ Event OnConsoleGetLightFade(String EventName, String sArgument, Float fArgument,
   Light akLight = self.FormFromSArgument(sArgument, 1) as Light
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   float result = PO3_SKSEFunctions.GetLightFade(akLight)
   PrintMessage("GetLightFade: " + result)
 EndEvent
-
 
 Event OnConsoleGetLightFOV(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17622,14 +17247,13 @@ Event OnConsoleGetLightFOV(String EventName, String sArgument, Float fArgument, 
   Light akLight = self.FormFromSArgument(sArgument, 1) as Light
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   float result = PO3_SKSEFunctions.GetLightFOV(akLight)
   PrintMessage("GetLightFOV: " + result)
 EndEvent
-
 
 Event OnConsoleGetLightRadius(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17641,14 +17265,13 @@ Event OnConsoleGetLightRadius(String EventName, String sArgument, Float fArgumen
   Light akLight = self.FormFromSArgument(sArgument, 1) as Light
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   float result = PO3_SKSEFunctions.GetLightRadius(akLight)
   PrintMessage("GetLightRadius: " + result)
 EndEvent
-
 
 Event OnConsoleGetLightRGB(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17660,14 +17283,13 @@ Event OnConsoleGetLightRGB(String EventName, String sArgument, Float fArgument, 
   Light akLight = self.FormFromSArgument(sArgument, 1) as Light
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   int[] result = PO3_SKSEFunctions.GetLightRGB(akLight)
   PrintMessage("GetLightRGB: " + result)
 EndEvent
-
 
 Event OnConsoleGetLightShadowDepthBias(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17679,14 +17301,13 @@ Event OnConsoleGetLightShadowDepthBias(String EventName, String sArgument, Float
   ObjectReference akLightObject = self.FormFromSArgument(sArgument, 1) as ObjectReference
 
   If akLightObject == none
-    PrintMessage("FATAL ERROR: Light Object retrieval failed.")
+    PrintMessage("FATAL ERROR: Light Object retrieval failed")
     Return
   EndIf
 
   float result = PO3_SKSEFunctions.GetLightShadowDepthBias(akLightObject)
   PrintMessage("GetLightShadowDepthBias: " + result)
 EndEvent
-
 
 Event OnConsoleGetLightType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17698,14 +17319,13 @@ Event OnConsoleGetLightType(String EventName, String sArgument, Float fArgument,
   Light akLight = self.FormFromSArgument(sArgument, 1) as Light
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   int result = PO3_SKSEFunctions.GetLightType(akLight)
   PrintMessage("GetLightType: " + result)
 EndEvent
-
 
 Event OnConsoleSetLightColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17718,14 +17338,13 @@ Event OnConsoleSetLightColor(String EventName, String sArgument, Float fArgument
   ColorForm akColorform = self.FormFromSArgument(sArgument, 2) as ColorForm
 
   If akLight == none || akColorform == none
-    PrintMessage("FATAL ERROR: Light or Colorform retrieval failed.")
+    PrintMessage("FATAL ERROR: Light or Colorform retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetLightColor(akLight, akColorform)
   PrintMessage("SetLightColor applied to " + akLight)
 EndEvent
-
 
 Event OnConsoleSetLightFade(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17738,14 +17357,13 @@ Event OnConsoleSetLightFade(String EventName, String sArgument, Float fArgument,
   float afRange = self.FloatFromSArgument(sArgument, 2)
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetLightFade(akLight, afRange)
   PrintMessage("SetLightFade applied to " + akLight)
 EndEvent
-
 
 Event OnConsoleSetLightFOV(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17758,14 +17376,13 @@ Event OnConsoleSetLightFOV(String EventName, String sArgument, Float fArgument, 
   float afFOV = self.FloatFromSArgument(sArgument, 2)
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetLightFOV(akLight, afFOV)
   PrintMessage("SetLightFOV applied to " + akLight)
 EndEvent
-
 
 Event OnConsoleSetLightRadius(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17778,14 +17395,13 @@ Event OnConsoleSetLightRadius(String EventName, String sArgument, Float fArgumen
   float afRadius = self.FloatFromSArgument(sArgument, 2)
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetLightRadius(akLight, afRadius)
   PrintMessage("SetLightRadius applied to " + akLight)
 EndEvent
-
 
 Event OnConsoleSetLightRGB(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17806,14 +17422,13 @@ Event OnConsoleSetLightRGB(String EventName, String sArgument, Float fArgument, 
   aiColor[2] = aiColorB
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetLightRGB(akLight, aiColor)
   PrintMessage("SetLightRGB applied to " + akLight)
 EndEvent
-
 
 Event OnConsoleSetLightShadowDepthBias(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17826,14 +17441,13 @@ Event OnConsoleSetLightShadowDepthBias(String EventName, String sArgument, Float
   float afDepthBias = self.FloatFromSArgument(sArgument, 2)
 
   If akLightObject == none
-    PrintMessage("FATAL ERROR: Light Object retrieval failed.")
+    PrintMessage("FATAL ERROR: Light Object retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetLightShadowDepthBias(akLightObject, afDepthBias)
   PrintMessage("SetLightShadowDepthBias applied to " + akLightObject)
 EndEvent
-
 
 Event OnConsoleSetLightType(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17846,14 +17460,13 @@ Event OnConsoleSetLightType(String EventName, String sArgument, Float fArgument,
   int aiLightType = self.IntFromSArgument(sArgument, 2)
 
   If akLight == none
-    PrintMessage("FATAL ERROR: Light retrieval failed.")
+    PrintMessage("FATAL ERROR: Light retrieval failed")
     Return
   EndIf
 
   PO3_SKSEFunctions.SetLightType(akLight, aiLightType)
   PrintMessage("SetLightType applied to " + akLight)
 EndEvent
-
 
 Event OnConsoleGetMagicEffectArchetype(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17864,7 +17477,7 @@ Event OnConsoleGetMagicEffectArchetype(String EventName, String sArgument, Float
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -17875,7 +17488,6 @@ Event OnConsoleGetMagicEffectArchetype(String EventName, String sArgument, Float
     
 EndEvent
 
-
 Event OnConsoleGetMagicEffectPrimaryActorValue(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetMagicEffectPrimaryActorValue(MagicEffect akMagicEffect)")
@@ -17885,7 +17497,7 @@ Event OnConsoleGetMagicEffectPrimaryActorValue(String EventName, String sArgumen
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -17894,7 +17506,6 @@ Event OnConsoleGetMagicEffectPrimaryActorValue(String EventName, String sArgumen
   PrintMessage("Archetype of " + self.GetFullID(akMagicEffect) + " is " + result)
     
 EndEvent
-
 
 Event OnConsoleGetMagicEffectySecondaryActorValue(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17905,7 +17516,7 @@ Event OnConsoleGetMagicEffectySecondaryActorValue(String EventName, String sArgu
   MagicEffect akMagicEffect = self.FormFromSArgument(sArgument, 1) as MagicEffect
 
   If akMagicEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -17914,7 +17525,6 @@ Event OnConsoleGetMagicEffectySecondaryActorValue(String EventName, String sArgu
   PrintMessage("Archetype of " + self.GetFullID(akMagicEffect) + " is " + result)
     
 EndEvent
-
 
 Event OnConsoleSetSubGraphFloatVariable(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17926,13 +17536,12 @@ Event OnConsoleSetSubGraphFloatVariable(String EventName, String sArgument, Floa
   string asVariableName = self.StringFromSArgument(sArgument, 1)
   float afValue = FloatFromSArgument(sArgument, 2)
   If akActor == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
   akActor.SetSubGraphFloatVariable(asVariableName, afValue)
   PrintMessage("SetSubGraphFloatVariable: " + asVariableName + " to " + afValue)
 EndEvent
-
 
 Event OnConsoleGetWorldModelNumTextureSets(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17942,14 +17551,13 @@ Event OnConsoleGetWorldModelNumTextureSets(String EventName, String sArgument, F
   EndIf
   Form akForm = FormFromSArgument(sArgument, 1)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   int num =  akForm.GetWorldModelNumTextureSets()
   PrintMessage("Number of world texture sets of " + self.GetFullID(akForm) + " is " + num)
 EndEvent
-
 
 Event OnConsoleGetWorldModelNthTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17960,14 +17568,13 @@ Event OnConsoleGetWorldModelNthTextureSet(String EventName, String sArgument, Fl
   Form akForm = FormFromSArgument(sArgument, 1)
   int aiIndex = IntFromSArgument(sArgument, 2)
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   TextureSet TXST =  akForm.GetWorldModelNthTextureSet(aiIndex)
   PrintMessage("World texture set #" + aiIndex + " of " + self.GetFullID(akForm) + " is " + self.GetFullID(TXST))
 EndEvent
-
 
 Event OnConsoleSetWorldModelNthTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -17979,7 +17586,7 @@ Event OnConsoleSetWorldModelNthTextureSet(String EventName, String sArgument, Fl
   int aiIndex = IntFromSArgument(sArgument, 2)
   TextureSet akTXST = FormFromSArgument(sArgument, 3) as TextureSet
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -17996,7 +17603,6 @@ Event OnConsoleSetWorldModelNthTextureSet(String EventName, String sArgument, Fl
   PrintMessage("World texture set #" + aiIndex + " of " + self.GetFullID(akForm) + " is " + self.GetFullID(newTXST))
 EndEvent
 
-
 Event OnConsoleGetWorldModelTextureSets(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetWorldModelTextureSets(Form akForm)")
@@ -18010,7 +17616,7 @@ Event OnConsoleGetWorldModelTextureSets(String EventName, String sArgument, Floa
     akForm = self.FormFromSArgument(sArgument, 1)
   EndIf
   If akForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -18030,14 +17636,13 @@ Event OnConsoleGetWorldModelTextureSets(String EventName, String sArgument, Floa
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetFormInfo(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetFormInfo(Form akForm)")
   Form akForm = FormFromSArgument(sArgument, 1)
   
   If akForm == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -18079,7 +17684,7 @@ Event OnConsoleGetFormInfo(String EventName, String sArgument, Float fArgument, 
     int txSet = 0
 
     If txSets <= 0
-      PrintMessage("    - None found.")
+      PrintMessage("    - None found")
     EndIf
     While txSet < txSets
       PrintMessage("    - TextureSet #" + txSet + ": " + self.GetFullID(akForm.GetWorldModelNthTextureSet(txSet)))
@@ -18091,7 +17696,7 @@ Event OnConsoleGetFormInfo(String EventName, String sArgument, Float fArgument, 
   int i = 0
   int L = keywords.Length
   If L > 5
-    PrintMessage("  - Found " + L + " keywords. Displaying only five. Use GetKeywords to see the rest.")
+    PrintMessage("  - Found " + L + " keywords. Displaying only five. Use GetKeywords to see the rest")
   EndIf
   L = PapyrusUtil.ClampInt(L, 0, 5)
   While i < L
@@ -18143,7 +17748,6 @@ Event OnConsoleGetFormInfo(String EventName, String sArgument, Float fArgument, 
   PrintMessage("0x80000000	(REFR) MultiBound: " + PO3_SKSEFunctions.IsRecordFlagSet(akForm, 0x80000000))
 EndEvent
 
-
 Event OnConsoleGetReferenceInfo(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetReferenceInfo(ObjectReference akRef)")
@@ -18154,7 +17758,7 @@ Event OnConsoleGetReferenceInfo(String EventName, String sArgument, Float fArgum
   EndIf
   
   If akRef == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -18264,7 +17868,7 @@ Event OnConsoleGetReferenceInfo(String EventName, String sArgument, Float fArgum
   int i = 0
   int L = aliases.Length
   If L > 5
-    PrintMessage("  - Found " + L + " aliases. Displaying only five. Use GetReferenceAliases to see the rest.")
+    PrintMessage("  - Found " + L + " aliases. Displaying only five. Use GetReferenceAliases to see the rest")
   EndIf
   L = PapyrusUtil.ClampInt(L, 0, 5)
   While i < L
@@ -18277,7 +17881,7 @@ Event OnConsoleGetReferenceInfo(String EventName, String sArgument, Float fArgum
   int j = 0
   int L2 = keywords.Length
   If L2 > 5
-    PrintMessage("  - Found " + L2 + " keywords. Displaying only five. Use GetKeywords to see the rest.")
+    PrintMessage("  - Found " + L2 + " keywords. Displaying only five. Use GetKeywords to see the rest")
   EndIf
   L2 = PapyrusUtil.ClampInt(L2, 0, 5)
   While i < L
@@ -18286,7 +17890,6 @@ Event OnConsoleGetReferenceInfo(String EventName, String sArgument, Float fArgum
   EndWhile
 
 EndEvent
-
 
 Event OnConsoleSendModEvent(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18299,7 +17902,7 @@ Event OnConsoleSendModEvent(String EventName, String sArgument, Float fArgument,
   String asStrArg = StringFromSArgument(sArgument, 2)
   Float afNumArg = FloatFromSArgument(sArgument, 2)
   If akForm == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
   akForm.SendModEvent(asEventName, afNumArg)
@@ -18308,7 +17911,6 @@ Event OnConsoleSendModEvent(String EventName, String sArgument, Float fArgument,
   PrintMessage("  - String argument: " + asStrArg)
   PrintMessage("  - Numeric argument: " + afNumArg)
 EndEvent
-
 
 Event OnConsoleLearnIngredientEffect(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18321,7 +17923,7 @@ Event OnConsoleLearnIngredientEffect(String EventName, String sArgument, Float f
   int aiIndex = self.IntFromSArgument(sArgument, 2, -1)
 
   If akIngredient == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -18335,11 +17937,10 @@ Event OnConsoleLearnIngredientEffect(String EventName, String sArgument, Float f
   PrintMessage("Player now knows " + self.GetFullID(akIngredient) + "'s #" + aiIndex + " effect")
 EndEvent
 
-
 Event OnConsoleGetSpellInfo(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetSpellInfo(Spell akSpell, Actor akCaster = PlayerRef)")
-  PrintMessage("Caster is solely to get the Magicka Cost taking into account the relevant perks.")
+  PrintMessage("Caster is solely to get the Magicka Cost taking into account the relevant perks")
   Spell akSpell = FormFromSArgument(sArgument, 1) as Spell
   Actor akCaster = RefFromSArgument(sArgument, 2) as Actor
 
@@ -18348,7 +17949,7 @@ Event OnConsoleGetSpellInfo(String EventName, String sArgument, Float fArgument,
   EndIf
 
   If akSpell == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -18377,7 +17978,6 @@ Event OnConsoleGetSpellInfo(String EventName, String sArgument, Float fArgument,
   
 EndEvent
 
-
 Event OnConsoleSayTopic(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SayTopic(ObjectReference akSpeaker, Topic akTopicToSay, Actor akActorToSpeakAs = None, bool abSpeakInPlayersHead = false)")
@@ -18387,18 +17987,17 @@ Event OnConsoleSayTopic(String EventName, String sArgument, Float fArgument, For
   bool abSpeakInPlayersHead = BoolFromSArgument(sArgument, 3, false)
 
   If akSpeaker == none || akTopicToSay == none || akActorToSpeakAs == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   akSpeaker.Say(akTopicToSay, akActorToSpeakAs, abSpeakInPlayersHead)
-  PrintMessage("Say order sent.")
+  PrintMessage("Say order sent")
   PrintMessage("  - akTopicToSay: " + GetFullID(akTopicToSay))
   PrintMessage("  - akActorToSpeakAs: " + GetFullID(akActorToSpeakAs))
   PrintMessage("  - abSpeakInPlayersHead: " + abSpeakInPlayersHead)
 
 EndEvent
-
 
 Event OnConsoleSetActorCalmed(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18418,7 +18017,7 @@ Event OnConsoleSetActorCalmed(String EventName, String sArgument, Float fArgumen
   EndIf
 
   If akActor == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -18426,7 +18025,6 @@ Event OnConsoleSetActorCalmed(String EventName, String sArgument, Float fArgumen
   
   PrintMessage(GetFullID(akActor) + " is now " + IfElse(abDoCalm, "", "not") + " calmed")
 EndEvent
-
 
 Event OnConsoleGetKeycodeString(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18442,7 +18040,6 @@ Event OnConsoleGetKeycodeString(String EventName, String sArgument, Float fArgum
     PrintMessage("Key " + aiKeyCode + " was not found")
   EndIf
 EndEvent
-
 
 Event OnConsoleSwapEquipment(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18462,7 +18059,7 @@ Event OnConsoleSwapEquipment(String EventName, String sArgument, Float fArgument
   EndIf
 
   If akActorA == none || akActorB == none 
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -18470,7 +18067,6 @@ Event OnConsoleSwapEquipment(String EventName, String sArgument, Float fArgument
   
   PrintMessage(GetFullID(akActorA) + " and " + (GetFullID(akActorB) + " swapped equipment"))
 EndEvent
-
 
 Event OnConsoleGetQuestMarker(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18481,7 +18077,7 @@ Event OnConsoleGetQuestMarker(String EventName, String sArgument, Float fArgumen
   EndIf
   Quest akQuest = self.FormFromSArgument(sArgument, 1) as Quest
   If akQuest == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -18493,7 +18089,6 @@ Event OnConsoleGetQuestMarker(String EventName, String sArgument, Float fArgumen
     PrintMessage("Quest marker for " + GetFullID(akQuest) + " is " + GetFullID(result))
   EndIf
 EndEvent
-
 
 Event OnConsoleFindAllArmorsForSlot(String EventName, String sArgument, Float fArgument, Form Sender)
   ; Print the format for the command
@@ -18509,7 +18104,7 @@ Event OnConsoleFindAllArmorsForSlot(String EventName, String sArgument, Float fA
 
   ; Validate the slot number
   If aiSlot < 0 || aiSlot > 63 ; Assuming slot numbers are between 0 and 63
-    PrintMessage("Invalid slot number. Slot must be between 0 and 63.")
+    PrintMessage("Invalid slot number. Slot must be between 0 and 63")
     Return
   EndIf
 
@@ -18526,9 +18121,9 @@ Event OnConsoleFindAllArmorsForSlot(String EventName, String sArgument, Float fA
   int i = 0
   int L = filteredArmors.Length
   If L > 0
-    PrintMessage("Found " + L + " armors for slot " + aiSlot + ".")
+    PrintMessage("Found " + L + " armors for slot " + aiSlot)
   Else
-    PrintMessage("No armors found for slot " + aiSlot + ".")
+    PrintMessage("No armors found for slot " + aiSlot)
     Return
   EndIf
 
@@ -18542,7 +18137,6 @@ Event OnConsoleFindAllArmorsForSlot(String EventName, String sArgument, Float fA
   EndWhile
 EndEvent
 
-
 Event OnConsoleForceStartScene(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: ForceStartScene(Scene akScene)")
@@ -18552,7 +18146,7 @@ Event OnConsoleForceStartScene(String EventName, String sArgument, Float fArgume
   EndIf
   Scene akScene = self.FormFromSArgument(sArgument, 1) as Scene
   If akScene == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -18560,7 +18154,6 @@ Event OnConsoleForceStartScene(String EventName, String sArgument, Float fArgume
   
   PrintMessage("Force starting scene " + GetFullID(akScene))
 EndEvent
-
 
 Event OnConsoleStartScene(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18571,7 +18164,7 @@ Event OnConsoleStartScene(String EventName, String sArgument, Float fArgument, F
   EndIf
   Scene akScene = self.FormFromSArgument(sArgument, 1) as Scene
   If akScene == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -18579,7 +18172,6 @@ Event OnConsoleStartScene(String EventName, String sArgument, Float fArgument, F
   
   PrintMessage("Starting scene " + GetFullID(akScene))
 EndEvent
-
 
 Event OnConsoleStopScene(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18590,7 +18182,7 @@ Event OnConsoleStopScene(String EventName, String sArgument, Float fArgument, Fo
   EndIf
   Scene akScene = self.FormFromSArgument(sArgument, 1) as Scene
   If akScene == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -18598,7 +18190,6 @@ Event OnConsoleStopScene(String EventName, String sArgument, Float fArgument, Fo
   
   PrintMessage("Stoping scene " + GetFullID(akScene))
 EndEvent
-
 
 Event OnConsoleIsScenePlaying(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18609,17 +18200,16 @@ Event OnConsoleIsScenePlaying(String EventName, String sArgument, Float fArgumen
   EndIf
   Scene akScene = self.FormFromSArgument(sArgument, 1) as Scene
   If akScene == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   If akScene.IsPlaying()
-    PrintMessage("Scene " + GetFullID(akScene) + " is playing.")
+    PrintMessage("Scene " + GetFullID(akScene) + " is playing")
   Else
-    PrintMessage("Scene " + GetFullID(akScene) + " is not playing.")
+    PrintMessage("Scene " + GetFullID(akScene) + " is not playing")
   EndIf
 EndEvent
-
 
 Event OnConsoleGetArmorAddonModelNumTextureSets(String EventName, String sArgument, Float fArgument, ArmorAddon Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18631,14 +18221,13 @@ Event OnConsoleGetArmorAddonModelNumTextureSets(String EventName, String sArgume
   bool abFirstPerson = BoolFromSArgument(sArgument, 2, false)
   bool abIsFemale = BoolFromSArgument(sArgument, 3, false)
   If akArmorAddon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   int num =  akArmorAddon.GetModelNumTextureSets(abFirstPerson, abIsFemale)
   PrintMessage("Number of armor addon texture sets of " + self.GetFullID(akArmorAddon) + " is " + num)
 EndEvent
-
 
 Event OnConsoleGetArmorAddonModelNthTextureSet(String EventName, String sArgument, Float fArgument, ArmorAddon Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18651,14 +18240,13 @@ Event OnConsoleGetArmorAddonModelNthTextureSet(String EventName, String sArgumen
   bool abFirstPerson = BoolFromSArgument(sArgument, 3, false)
   bool abIsFemale = BoolFromSArgument(sArgument, 4, false)
   If akArmorAddon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   TextureSet TXST =  akArmorAddon.GetModelNthTextureSet(aiIndex, abFirstPerson, abIsFemale)
   PrintMessage("Armor addon texture set #" + aiIndex + " of " + self.GetFullID(akArmorAddon) + " is " + self.GetFullID(TXST))
 EndEvent
-
 
 Event OnConsoleSetArmorAddonModelNthTextureSet(String EventName, String sArgument, Float fArgument, ArmorAddon Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18672,7 +18260,7 @@ Event OnConsoleSetArmorAddonModelNthTextureSet(String EventName, String sArgumen
   bool abIsFemale = BoolFromSArgument(sArgument, 4, false)
   TextureSet akTXST = FormFromSArgument(sArgument, 5) as TextureSet
   If akArmorAddon == none || akTXST == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -18689,7 +18277,6 @@ Event OnConsoleSetArmorAddonModelNthTextureSet(String EventName, String sArgumen
   PrintMessage("Armor addon texture set #" + aiIndex + " of " + self.GetFullID(akArmorAddon) + " is " + self.GetFullID(newTXST))
 EndEvent
 
-
 Event OnConsoleGetArmorNumArmorAddons(String EventName, String sArgument, Float fArgument, Armor Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetArmorNumArmorAddons(Armor akArmor)")
@@ -18698,14 +18285,13 @@ Event OnConsoleGetArmorNumArmorAddons(String EventName, String sArgument, Float 
   EndIf
   Armor akArmor = FormFromSArgument(sArgument, 1) as Armor
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   int num =  akArmor.GetNumArmorAddons()
   PrintMessage("Number of armor addons of " + self.GetFullID(akArmor) + " is " + num)
 EndEvent
-
 
 Event OnConsoleGetArmorNthArmorAddon(String EventName, String sArgument, Float fArgument, Armor Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18716,14 +18302,13 @@ Event OnConsoleGetArmorNthArmorAddon(String EventName, String sArgument, Float f
   Armor akArmor = FormFromSArgument(sArgument, 1) as Armor
   int aiIndex = IntFromSArgument(sArgument, 2)
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   ArmorAddon AAddon =  akArmor.GetNthArmorAddon(aiIndex)
   PrintMessage("Armor addon #" + aiIndex + " of " + self.GetFullID(akArmor) + " is " + self.GetFullID(AAddon))
 EndEvent
-
 
 Event OnConsoleGetArmorAddons(String EventName, String sArgument, Float fArgument, Armor Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18733,7 +18318,7 @@ Event OnConsoleGetArmorAddons(String EventName, String sArgument, Float fArgumen
   EndIf
   Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
   If akArmor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
@@ -18753,7 +18338,6 @@ Event OnConsoleGetArmorAddons(String EventName, String sArgument, Float fArgumen
   EndWhile
 EndEvent
 
-
 Event OnConsoleSetFreeCameraSpeed(String EventName, String sArgument, Float fArgument, Armor Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: SetFreeCameraSpeed(float afSpeed)")
@@ -18762,12 +18346,11 @@ Event OnConsoleSetFreeCameraSpeed(String EventName, String sArgument, Float fArg
   EndIf
   float afSpeed = FloatFromSArgument(sArgument, 1)
   If afSpeed < 0.1
-    PrintMessage("FATAL ERROR: Invalid speed.")
+    PrintMessage("FATAL ERROR: Invalid speed")
     Return
   EndIf
   MiscUtil.SetFreeCameraSpeed(afSpeed)
 EndEvent
-
 
 Event OnConsoleGetFormsInFormList(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18777,7 +18360,7 @@ Event OnConsoleGetFormsInFormList(String EventName, String sArgument, Float fArg
   EndIf
   Formlist akFormList = self.FormFromSArgument(sArgument, 1) as Formlist
   If akFormList == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Form[] forms = akFormlist.ToArray()
@@ -18795,7 +18378,6 @@ Event OnConsoleGetFormsInFormList(String EventName, String sArgument, Float fArg
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetGlobalVariable(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetGlobalVariable [<String asKey>]")
@@ -18811,7 +18393,6 @@ Event OnConsoleGetGlobalVariable(String EventName, String sArgument, Float fArgu
   PrintMessage("GlobalVariable: " + self.GetFullID(result))
 EndEvent
 
-
 Event OnConsoleGetFormMagicEffects(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format:  GetMagicEffectsForForm(Form akForm)]")
@@ -18820,7 +18401,7 @@ Event OnConsoleGetFormMagicEffects(String EventName, String sArgument, Float fAr
   EndIf
   Form akForm = FormFromSArgument(sArgument, 1)
   If akForm == none
-    PrintMessage("FATAL ERROR: Form retrieval error.")
+    PrintMessage("FATAL ERROR: Form retrieval error")
     Return
   EndIf
   MagicEffect[] effects = DbSKSEFunctions.GetMagicEffectsForForm(akForm)
@@ -18838,7 +18419,6 @@ Event OnConsoleGetFormMagicEffects(String EventName, String sArgument, Float fAr
   EndWhile
 EndEvent
 
-
 Event OnConsoleFlattenLeveledList(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: FlattenLeveledList(LeveledItem akLeveledList)")
@@ -18847,7 +18427,7 @@ Event OnConsoleFlattenLeveledList(String EventName, String sArgument, Float fArg
   EndIf
   LeveledItem akLeveledList = self.FormFromSArgument(sArgument, 1) as LeveledItem
   If akLeveledList == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Form[] forms = SPE_Form.FlattenLeveledList(akLeveledList)
@@ -18865,7 +18445,6 @@ Event OnConsoleFlattenLeveledList(String EventName, String sArgument, Float fArg
   EndWhile
 EndEvent
 
-
 Event OnConsoleGetArmorAddonSlotMask(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetArmorAddonSlotMask(ArmorAddon akArmorAddon)")
@@ -18874,13 +18453,12 @@ Event OnConsoleGetArmorAddonSlotMask(String EventName, String sArgument, Float f
   EndIf
   ArmorAddon akArmorAddon = self.FormFromSArgument(sArgument, 1) as ArmorAddon
   If akArmorAddon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int slotMask = akArmorAddon.GetSlotMask()
   PrintMessage("Slot mask of " + self.GetFullID(akArmorAddon) + " is " + slotMask)
 EndEvent
-
 
 Event OnConsoleSetArmorAddonSlotMask(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18891,13 +18469,12 @@ Event OnConsoleSetArmorAddonSlotMask(String EventName, String sArgument, Float f
   ArmorAddon akArmorAddon = self.FormFromSArgument(sArgument, 1) as ArmorAddon
   int slotMask = self.IntFromSArgument(sArgument, 2)
   If akArmorAddon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmorAddon.SetSlotMask(slotMask)
   PrintMessage("Slot mask of " + self.GetFullID(akArmorAddon) + " set to " + slotMask)
 EndEvent
-
 
 Event OnConsoleAddArmorAddonSlotToMask(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18908,7 +18485,7 @@ Event OnConsoleAddArmorAddonSlotToMask(String EventName, String sArgument, Float
   ArmorAddon akArmorAddon = self.FormFromSArgument(sArgument, 1) as ArmorAddon
   int slotMask = self.IntFromSArgument(sArgument, 2)
   If akArmorAddon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmorAddon.AddSlotToMask(slotMask)
@@ -18925,13 +18502,12 @@ Event OnConsoleRemoveArmorAddonSlotFromMask(String EventName, String sArgument, 
   ArmorAddon akArmorAddon = self.FormFromSArgument(sArgument, 1) as ArmorAddon
   int slotMask = self.IntFromSArgument(sArgument, 2)
   If akArmorAddon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akArmorAddon.RemoveSlotFromMask(slotMask)
   PrintMessage("Slot mask of " + self.GetFullID(akArmorAddon) + " removed " + slotMask)
 EndEvent
-
 
 Event OnConsoleGetArmorAddonMaskForSlot(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18944,7 +18520,6 @@ Event OnConsoleGetArmorAddonMaskForSlot(String EventName, String sArgument, Floa
   PrintMessage("Mask for slot " + slot + " is " + mask)
 EndEvent
 
-
 Event OnConsoleGetWeaponModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetWeaponModelPath(Weapon akWeapon)")
@@ -18954,13 +18529,12 @@ Event OnConsoleGetWeaponModelPath(String EventName, String sArgument, Float fArg
   Weapon akWeapon = self.FormFromSArgument(sArgument, 1) as Weapon
 
   If akWeapon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string Result = akWeapon.GetModelPath()
   PrintMessage("Model path of " + self.GetFullID(akWeapon) + " is " + Result)
 EndEvent
-
 
 Event OnConsoleSetWeaponModelPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18972,13 +18546,12 @@ Event OnConsoleSetWeaponModelPath(String EventName, String sArgument, Float fArg
   string path = DbMiscFunctions.RemovePrefixFromString(sArgument, StringFromSArgument(sArgument, 0) + " " + StringFromSArgument(sArgument, 1) + " ")
 
   If akWeapon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akWeapon.SetModelPath(path)
   PrintMessage("Model path of " + self.GetFullID(akWeapon) + " set to " + path)
 EndEvent
-
 
 Event OnConsoleGetWeaponIconPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -18989,13 +18562,12 @@ Event OnConsoleGetWeaponIconPath(String EventName, String sArgument, Float fArgu
   Weapon akWeapon = self.FormFromSArgument(sArgument, 1) as Weapon
 
   If akWeapon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string Result = akWeapon.GetIconPath()
   PrintMessage("Icon path of " + self.GetFullID(akWeapon) + " is " + Result)
 EndEvent
-
 
 Event OnConsoleSetWeaponIconPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19007,13 +18579,12 @@ Event OnConsoleSetWeaponIconPath(String EventName, String sArgument, Float fArgu
   string path = DbMiscFunctions.RemovePrefixFromString(sArgument, StringFromSArgument(sArgument, 0) + " " + StringFromSArgument(sArgument, 1) + " ")
 
   If akWeapon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akWeapon.SetIconPath(path)
   PrintMessage("Icon path of " + self.GetFullID(akWeapon) + " set to " + path)
 EndEvent
-
 
 Event OnConsoleGetWeaponMessageIconPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19024,13 +18595,12 @@ Event OnConsoleGetWeaponMessageIconPath(String EventName, String sArgument, Floa
   Weapon akWeapon = self.FormFromSArgument(sArgument, 1) as Weapon
 
   If akWeapon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   string Result = akWeapon.GetMessageIconPath()
   PrintMessage("Message icon path of " + self.GetFullID(akWeapon) + " is " + Result)
 EndEvent
-
 
 Event OnConsoleSetWeaponMessageIconPath(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19041,13 +18611,12 @@ Event OnConsoleSetWeaponMessageIconPath(String EventName, String sArgument, Floa
   Weapon akWeapon = self.FormFromSArgument(sArgument, 1) as Weapon
   string path = DbMiscFunctions.RemovePrefixFromString(sArgument, StringFromSArgument(sArgument, 0) + " " + StringFromSArgument(sArgument, 1) + " ")
   If akWeapon == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akWeapon.SetMessageIconPath(path)
   PrintMessage("Message icon path of " + self.GetFullID(akWeapon) + " set to " + path)
 EndEvent
-
 
 Event OnConsoleSetLocalGravity(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19064,7 +18633,6 @@ Event OnConsoleSetLocalGravity(String EventName, String sArgument, Float fArgume
   PrintMessage("Local gravity set to X: " + afX + ", Y: " + afY + ", Z: " + afZ)
 EndEvent
 
-
 Event OnConsoleGetColorFormColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetColorFormColor(ColorForm akColorForm)")
@@ -19073,13 +18641,12 @@ Event OnConsoleGetColorFormColor(String EventName, String sArgument, Float fArgu
   EndIf
   ColorForm akColorForm = self.FormFromSArgument(sArgument, 1) as ColorForm
   If akColorForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   int color = akColorForm.GetColor()
   PrintMessage("Color of " + self.GetFullID(akColorForm) + " is " + color)
 EndEvent
-
 
 Event OnConsoleSetColorFormColor(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19090,13 +18657,12 @@ Event OnConsoleSetColorFormColor(String EventName, String sArgument, Float fArgu
   ColorForm akColorForm = self.FormFromSArgument(sArgument, 1) as ColorForm
   int color = self.IntFromSArgument(sArgument, 2)
   If akColorForm == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   akColorForm.SetColor(color)
   PrintMessage("Color of " + self.GetFullID(akColorForm) + " set to " + color)
 EndEvent
-
 
 Event OnConsoleSetActorSex(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19107,12 +18673,11 @@ Event OnConsoleSetActorSex(String EventName, String sArgument, Float fArgument, 
   Actor akActor = self.FormFromSArgument(sArgument, 1) as Actor
   int aiSex = self.IntFromSArgument(sArgument,2)
   If akActor == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   ProteusDLLUtils.SetSex(akActor, aiSex)
 EndEvent
-
 
 Event OnConsoleRefreshItemMenu(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19123,7 +18688,6 @@ Event OnConsoleRefreshItemMenu(String EventName, String sArgument, Float fArgume
   DbSKSEFunctions.RefreshItemMenu()
 EndEvent
 
-
 Event OnConsoleGetArtObjectNthTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetArtObjectNthTextureSet(Art akArtObject, int aiIndex)")
@@ -19133,14 +18697,13 @@ Event OnConsoleGetArtObjectNthTextureSet(String EventName, String sArgument, Flo
   Art akArtObject = FormFromSArgument(sArgument, 1) as Art
   int aiIndex = IntFromSArgument(sArgument, 2)
   If akArtObject == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   
   TextureSet TXST =  DbSKSEFunctions.GetArtObjectNthTextureSet(akArtObject, aiIndex)
   PrintMessage("World texture set #" + aiIndex + " of " + self.GetFullID(akArtObject) + " is " + self.GetFullID(TXST))
 EndEvent
-
 
 Event OnConsoleSetArtObjectNthTextureSet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19152,7 +18715,7 @@ Event OnConsoleSetArtObjectNthTextureSet(String EventName, String sArgument, Flo
   int aiIndex = IntFromSArgument(sArgument, 2)
   TextureSet akTXST = FormFromSArgument(sArgument, 3) as TextureSet
   If akArtObject == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
 
@@ -19169,7 +18732,6 @@ Event OnConsoleSetArtObjectNthTextureSet(String EventName, String sArgument, Flo
   PrintMessage("World texture set #" + aiIndex + " of " + self.GetFullID(akArtObject) + " is " + self.GetFullID(newTXST))
 EndEvent
 
-
 Event OnConsoleGetVisualEffectArtObject(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
   PrintMessage("Format: GetVisualEffectArtObject(VisualEffect akVisualEffect)")
@@ -19178,13 +18740,12 @@ Event OnConsoleGetVisualEffectArtObject(String EventName, String sArgument, Floa
   EndIf
   VisualEffect akVisualEffect = self.FormFromSArgument(sArgument, 1) as VisualEffect
   If akVisualEffect == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   Art artObject = PO3_SKSEFunctions.GetArtObject(akVisualEffect)
   PrintMessage("Art object of " + self.GetFullID(akVisualEffect) + " is " +  self.GetFullID(artObject))
 EndEvent
-
 
 Event OnConsoleSetVisualEffectArtObject(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19195,13 +18756,12 @@ Event OnConsoleSetVisualEffectArtObject(String EventName, String sArgument, Floa
   VisualEffect akVisualEffect = self.FormFromSArgument(sArgument, 1) as VisualEffect
   Art akArt = self.FormFromSArgument(sArgument, 2) as Art
   If akVisualEffect == none || akArt == none
-    PrintMessage("FATAL ERROR: FormID retrieval failed.")
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
     Return
   EndIf
   PO3_SKSEFunctions.SetArtObject(akVisualEffect, akArt)
   PrintMessage("Art object of " + self.GetFullID(akVisualEffect) + " set to " +  self.GetFullID(akArt))
 EndEvent
-
 
 Event OnConsoleSelectObjectUnderFeet(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
@@ -19209,10 +18769,10 @@ Event OnConsoleSelectObjectUnderFeet(String EventName, String sArgument, Float f
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
-  Actor akActor = self.FormFromSArgument(sArgument, 1) as Actor
+  Actor akActor = self.RefFromSArgument(sArgument, 1) as Actor
   If akActor == none
     akActor = PlayerRef
-    PrintMessage("Defaulting to akActor = PlayerRef.")
+    PrintMessage("Defaulting to akActor = PlayerRef")
     Return
   EndIf
   ConsoleUtil.SetSelectedReference(PO3_SKSEFunctions.GetObjectUnderFeet(akActor))
@@ -19583,7 +19143,7 @@ EndEvent
 
 Event OnConsoleDisenchant(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format:Disenchant(Form akForm)")
+  PrintMessage("Format: Disenchant(Form akForm)")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -19595,7 +19155,7 @@ EndEvent
 
 Event OnConsoleStartPhysics(String EventName, String sArgument, Float fArgument, Form Sender)
   Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
-  PrintMessage("Format:StartPhysics(Actor akActor, String asNodeName)")
+  PrintMessage("Format: StartPhysics(Actor akActor, String asNodeName)")
   If self.StringFromSArgument(sArgument, 1) == "?"
     Return
   EndIf
@@ -19619,6 +19179,2199 @@ Event OnConsoleStopPhysics(String EventName, String sArgument, Float fArgument, 
   PrintMessage("Stopped physics in " + GetFullID(akActor) + "'s " + asNodeName)
 EndEvent
 
+Event OnConsoleGetOffensiveMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetOffensiveMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetOffensiveMult()
+  PrintMessage("Offensive Mult: " + result)
+EndEvent
+
+Event OnConsoleGetDefensiveMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetDefensiveMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetDefensiveMult()
+  PrintMessage("Defensive Mult: " + result)
+EndEvent
+
+Event OnConsoleGetGroupOffensiveMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetGroupOffensiveMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetGroupOffensiveMult()
+  PrintMessage("Group Offensive Mult: " + result)
+EndEvent
+
+Event OnConsoleGetAvoidThreatChance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetAvoidThreatChance(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetAvoidThreatChance()
+  PrintMessage("Avoid Threat Chance: " + result)
+EndEvent
+
+Event OnConsoleGetMeleeMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMeleeMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMeleeMult()
+  PrintMessage("Melee Mult: " + result)
+EndEvent
+
+Event OnConsoleGetRangedMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetRangedMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetRangedMult()
+  PrintMessage("Ranged Mult: " + result)
+EndEvent
+
+Event OnConsoleGetMagicMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMagicMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMagicMult()
+  PrintMessage("Magic Mult: " + result)
+EndEvent
+
+Event OnConsoleGetShoutMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetShoutMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetShoutMult()
+  PrintMessage("Shout Mult: " + result)
+EndEvent
+
+Event OnConsoleGetStaffMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetStaffMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetStaffMult()
+  PrintMessage("Staff Mult: " + result)
+EndEvent
+
+Event OnConsoleGetUnarmedMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetUnarmedMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetUnarmedMult()
+  PrintMessage("Unarmed Mult: " + result)
+EndEvent
+
+Event OnConsoleSetOffensiveMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetOffensiveMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetOffensiveMult(mult)
+  PrintMessage("Set Offensive Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetDefensiveMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetDefensiveMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetDefensiveMult(mult)
+  PrintMessage("Set Defensive Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetGroupOffensiveMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetGroupOffensiveMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetGroupOffensiveMult(mult)
+  PrintMessage("Set Group Offensive Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetAvoidThreatChance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetAvoidThreatChance(CombatStyle akCombatStyle, Float chance)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float chance = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetAvoidThreatChance(chance)
+  PrintMessage("Set Avoid Threat Chance to: " + chance)
+EndEvent
+
+Event OnConsoleSetMeleeMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMeleeMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMeleeMult(mult)
+  PrintMessage("Set Melee Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetRangedMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetRangedMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetRangedMult(mult)
+  PrintMessage("Set Ranged Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetMagicMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMagicMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMagicMult(mult)
+  PrintMessage("Set Magic Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetShoutMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetShoutMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetShoutMult(mult)
+  PrintMessage("Set Shout Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetStaffMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetStaffMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetStaffMult(mult)
+  PrintMessage("Set Staff Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetUnarmedMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetUnarmedMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetUnarmedMult(mult)
+  PrintMessage("Set Unarmed Mult to: " + mult)
+EndEvent
+
+Event OnConsoleGetMeleeAttackStaggeredMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMeleeAttackStaggeredMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMeleeAttackStaggeredMult()
+  PrintMessage("Melee Attack Staggered Mult: " + result)
+EndEvent
+
+Event OnConsoleGetMeleePowerAttackStaggeredMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMeleePowerAttackStaggeredMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMeleePowerAttackStaggeredMult()
+  PrintMessage("Melee Power Attack Staggered Mult: " + result)
+EndEvent
+
+Event OnConsoleGetMeleePowerAttackBlockingMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMeleePowerAttackBlockingMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMeleePowerAttackBlockingMult()
+  PrintMessage("Melee Power Attack Blocking Mult: " + result)
+EndEvent
+
+Event OnConsoleGetMeleeBashMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMeleeBashMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMeleeBashMult()
+  PrintMessage("Melee Bash Mult: " + result)
+EndEvent
+
+Event OnConsoleGetMeleeBashRecoiledMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMeleeBashRecoiledMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMeleeBashRecoiledMult()
+  PrintMessage("Melee Bash Recoiled Mult: " + result)
+EndEvent
+
+Event OnConsoleGetMeleeBashAttackMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMeleeBashAttackMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMeleeBashAttackMult()
+  PrintMessage("Melee Bash Attack Mult: " + result)
+EndEvent
+
+Event OnConsoleGetMeleeBashPowerAttackMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMeleeBashPowerAttackMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMeleeBashPowerAttackMult()
+  PrintMessage("Melee Bash Power Attack Mult: " + result)
+EndEvent
+
+Event OnConsoleGetMeleeSpecialAttackMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetMeleeSpecialAttackMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetMeleeSpecialAttackMult()
+  PrintMessage("Melee Special Attack Mult: " + result)
+EndEvent
+
+Event OnConsoleGetAllowDualWielding(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetAllowDualWielding(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Bool result = akCombatStyle.GetAllowDualWielding()
+  PrintMessage("Allow Dual Wielding: " + result)
+EndEvent
+
+Event OnConsoleSetMeleeAttackStaggeredMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMeleeAttackStaggeredMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMeleeAttackStaggeredMult(mult)
+  PrintMessage("Set Melee Attack Staggered Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetMeleePowerAttackStaggeredMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMeleePowerAttackStaggeredMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMeleePowerAttackStaggeredMult(mult)
+  PrintMessage("Set Melee Power Attack Staggered Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetMeleePowerAttackBlockingMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMeleePowerAttackBlockingMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMeleePowerAttackBlockingMult(mult)
+  PrintMessage("Set Melee Power Attack Blocking Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetMeleeBashMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMeleeBashMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMeleeBashMult(mult)
+  PrintMessage("Set Melee Bash Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetMeleeBashRecoiledMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMeleeBashRecoiledMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMeleeBashRecoiledMult(mult)
+  PrintMessage("Set Melee Bash Recoiled Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetMeleeBashAttackMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMeleeBashAttackMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMeleeBashAttackMult(mult)
+  PrintMessage("Set Melee Bash Attack Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetMeleeBashPowerAttackMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMeleeBashPowerAttackMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMeleeBashPowerAttackMult(mult)
+  PrintMessage("Set Melee Bash Power Attack Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetMeleeSpecialAttackMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMeleeSpecialAttackMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetMeleeSpecialAttackMult(mult)
+  PrintMessage("Set Melee Special Attack Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetAllowDualWielding(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetAllowDualWielding(CombatStyle akCombatStyle, Bool allow)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Bool allow = self.BoolFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetAllowDualWielding(allow)
+  PrintMessage("Set Allow Dual Wielding to: " + allow)
+EndEvent
+
+Event OnConsoleGetCloseRangeDuelingCircleMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetCloseRangeDuelingCircleMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetCloseRangeDuelingCircleMult()
+  PrintMessage("Close Range Dueling Circle Mult: " + result)
+EndEvent
+
+Event OnConsoleGetCloseRangeDuelingFallbackMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetCloseRangeDuelingFallbackMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetCloseRangeDuelingFallbackMult()
+  PrintMessage("Close Range Dueling Fallback Mult: " + result)
+EndEvent
+
+Event OnConsoleGetCloseRangeFlankingFlankDistance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetCloseRangeFlankingFlankDistance(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetCloseRangeFlankingFlankDistance()
+  PrintMessage("Close Range Flanking Flank Distance: " + result)
+EndEvent
+
+Event OnConsoleGetCloseRangeFlankingStalkTime(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetCloseRangeFlankingStalkTime(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetCloseRangeFlankingStalkTime()
+  PrintMessage("Close Range Flanking Stalk Time: " + result)
+EndEvent
+
+Event OnConsoleSetCloseRangeDuelingCircleMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetCloseRangeDuelingCircleMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetCloseRangeDuelingCircleMult(mult)
+  PrintMessage("Set Close Range Dueling Circle Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetCloseRangeDuelingFallbackMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetCloseRangeDuelingFallbackMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetCloseRangeDuelingFallbackMult(mult)
+  PrintMessage("Set Close Range Dueling Fallback Mult to: " + mult)
+EndEvent
+
+Event OnConsoleSetCloseRangeFlankingFlankDistance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetCloseRangeFlankingFlankDistance(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetCloseRangeFlankingFlankDistance(mult)
+  PrintMessage("Set Close Range Flanking Flank Distance to: " + mult)
+EndEvent
+
+Event OnConsoleSetCloseRangeFlankingStalkTime(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetCloseRangeFlankingStalkTime(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetCloseRangeFlankingStalkTime(mult)
+  PrintMessage("Set Close Range Flanking Stalk Time to: " + mult)
+EndEvent
+
+Event OnConsoleGetLongRangeStrafeMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetLongRangeStrafeMult(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetLongRangeStrafeMult()
+  PrintMessage("Long Range Strafe Mult: " + result)
+EndEvent
+
+Event OnConsoleSetLongRangeStrafeMult(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetLongRangeStrafeMult(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetLongRangeStrafeMult(mult)
+  PrintMessage("Set Long Range Strafe Mult to: " + mult)
+EndEvent
+
+Event OnConsoleGetFlightHoverChance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetFlightHoverChance(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetFlightHoverChance()
+  PrintMessage("Flight Hover Chance: " + result)
+EndEvent
+
+Event OnConsoleGetFlightDiveBombChance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetFlightDiveBombChance(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetFlightDiveBombChance()
+  PrintMessage("Flight Dive Bomb Chance: " + result)
+EndEvent
+
+Event OnConsoleGetFlightFlyingAttackChance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetFlightFlyingAttackChance(CombatStyle akCombatStyle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  If akCombatStyle == none
+    Return
+  EndIf
+  Float result = akCombatStyle.GetFlightFlyingAttackChance()
+  PrintMessage("Flight Flying Attack Chance: " + result)
+EndEvent
+
+Event OnConsoleSetFlightHoverChance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetFlightHoverChance(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetFlightHoverChance(mult)
+  PrintMessage("Set Flight Hover Chance to: " + mult)
+EndEvent
+
+Event OnConsoleSetFlightDiveBombChance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetFlightDiveBombChance(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetFlightDiveBombChance(mult)
+  PrintMessage("Set Flight Dive Bomb Chance to: " + mult)
+EndEvent
+
+Event OnConsoleSetFlightFlyingAttackChance(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetFlightFlyingAttackChance(CombatStyle akCombatStyle, Float mult)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  CombatStyle akCombatStyle = self.FormFromSArgument(sArgument, 1) as CombatStyle
+  Float mult = self.FloatFromSArgument(sArgument, 2)
+  If akCombatStyle == none
+    Return
+  EndIf
+  akCombatStyle.SetFlightFlyingAttackChance(mult)
+  PrintMessage("Set Flight Flying Attack Chance to: " + mult)
+EndEvent
+
+Event OnConsoleSetSILNakedSlotMask(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetSILNakedSlotMask(Actor akActor, int aiMask, bool abWig=false)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akActor = FormFromSArgument(sArgument, 1) as Actor
+  int aiMask = IntFromSArgument(sArgument, 2)
+  bool abWig = BoolFromSArgument(sArgument, 3)
+  SILFollower.SetNakedSlotMask(akActor, aiMask, abWig)
+  PrintMessage("Changed slot mask to " + aiMask)
+EndEvent
+
+Event OnConsoleGetAnimationEventName(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetAnimationEventName(Idle akIdle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Idle akIdle = FormFromSArgument(sArgument, 1) as Idle
+  PrintMessage("Animation event name is " + PO3_SKSEFunctions.GetAnimationEventName(akIdle))
+EndEvent
+
+Event OnConsoleGetAnimationFileName(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetAnimationFileName(Idle akIdle)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Idle akIdle = FormFromSArgument(sArgument, 1) as Idle
+  PrintMessage("Animation event name is " + PO3_SKSEFunctions.GetAnimationFileName(akIdle))
+EndEvent
+
+Event OnConsoleSetObjectiveText(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetObjectiveText(Quest akQuest, int aiIndex, string asText)")
+  PrintMessage("This function does NOT require using quotes to pass string asText with spaces")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Quest akQuest = FormFromSArgument(sArgument, 1) as Quest
+  Int aiIndex = IntFromSArgument(sArgument, 2)
+  String asText = DbMiscFunctions.RemovePrefixFromString(sArgument, StringFromSArgument(sArgument, 1) + " " + StringFromSArgument(sArgument, 2) + " ")
+  
+  If akQuest == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  PO3_SKSEFunctions.SetObjectiveText(akQuest, asText, aiIndex)
+  PrintMessage("Attempted to change name of " + self.GetFullID(akQuest) + "'s " + aiIndex + " objective to: ")
+  PrintMessage(asText)
+EndEvent
+
+Event OnConsoleRemoveInvalidConstructibleObjects(String EventName, String sArgument, Float fArgument, Form Sender)
+    ; Print usage instructions if no arguments are provided
+    Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+    If QtyPars == 0
+        PrintMessage("Usage: RemoveInvalidConstructibleObjects()")
+        Return
+    EndIf
+
+    ; Get all ConstructibleObject forms
+    ConstructibleObject[] ConObjs = DbSkseFunctions.GetAllConstructibleObjects(none)
+    If !ConObjs
+        PrintMessage("Failed to retrieve ConstructibleObject forms")
+        Return
+    EndIf
+
+    ; Iterate through all ConstructibleObject forms
+    Int i = 0
+    Int InvalidCount = 0
+    While i < ConObjs.Length
+        ConstructibleObject ConObj = ConObjs[i]
+        If ConObj && (ConObj.GetResult() as Form) == none
+            ; Log the invalid form
+            PrintMessage("Removing invalid ConstructibleObject: " + self.GetFullID(ConObj))
+
+            ; Disable the ConstructibleObject
+            ConObj.SetWorkbenchKeyword(none) ; Remove workbench association
+            PO3_SKSEFunctions.SetRecordFlag(ConObj, 0x00001000) ; Mark as deleted or invalid
+
+            InvalidCount += 1
+        EndIf
+        i += 1
+    EndWhile
+
+    ; Report results
+    PrintMessage("Removed " + InvalidCount + " invalid ConstructibleObject forms")
+EndEvent
+
+Event OnConsoleGetAllOutfitParts(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetAllOutfitParts [<Outfit akOutfit>]")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  Outfit akOutfit = self.FormFromSArgument(sArgument, 1) as Outfit
+  If akOutfit == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  
+  int totalSlots = akOutfit.GetNumParts()
+  int slotPart = 0
+
+  If totalSlots <= 0
+    PrintMessage("No outfit parts found for " + self.GetFullID(akOutfit))
+    Return
+  Else
+    PrintMessage(totalslots + " outfit parts found for " + self.GetFullID(akOutfit))
+  EndIf
+  
+  While slotPart < totalSlots
+    PrintMessage("#" + slotPart + ": " + self.GetFullID(akOutfit.GetNthPart(slotPart)))
+    slotPart += 1
+  EndWhile
+EndEvent
+
+Event OnConsoleGetAllTexturePaths(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetAllTexturePaths [<TextureSet akTextureSet>]")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  TextureSet akTextureSet = self.FormFromSArgument(sArgument, 1) as TextureSet
+  If akTextureSet == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  
+  int totalSlots = akTextureSet.GetNumTexturePaths()
+  int slotPart = 0
+
+  If totalSlots <= 0
+    PrintMessage("No texture paths found for " + self.GetFullID(akTextureSet))
+    Return
+  Else
+    PrintMessage(totalslots + " texture paths found for " + self.GetFullID(akTextureSet))
+  EndIf
+  
+  While slotPart < totalSlots
+    PrintMessage("#" + slotPart + ": " + akTextureSet.GetNthTexturePath(slotPart))
+    slotPart += 1
+  EndWhile
+EndEvent
+
+Event OnConsoleGetAutorunLines(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetAutorunLines")
+  
+  ; Define the file path
+  String filePath = "Data/Autorun.txt"
+  
+  ; Check if the file exists
+  If !FileExists(filePath)
+    PrintMessage("FATAL ERROR: File does not exist: " + filePath)
+    Return
+  EndIf
+  
+  ; Read the entire file content
+  String fileContent = ReadFromFile(filePath)
+  
+  ; Split the content into lines and display them
+  String[] lines = StringUtil.Split(fileContent, "\n")
+  Int lineNumber = 0
+  While lineNumber < lines.Length
+    PrintMessage("#" + lineNumber + ": " + lines[lineNumber])
+    lineNumber += 1
+  EndWhile
+  
+  PrintMessage("Total lines read: " + lineNumber)
+EndEvent
+
+Event OnConsoleAddAutorunLine(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: AddAutorunLine <line to add>")
+  
+  ; Check if the line to add is provided
+  String lineToAdd = self.StringFromSArgument(sArgument, 1)
+  If lineToAdd == ""
+    PrintMessage("FATAL ERROR: No line provided to add")
+    Return
+  EndIf
+  
+  ; Define the file path
+  String filePath = "Data/Autorun.txt"
+  
+  ; Append the line to the file
+  Bool success = WriteToFile(filePath, lineToAdd + "\n", true, false) ; Append mode, no timestamp
+  
+  If success
+    PrintMessage("Line added: " + lineToAdd)
+  Else
+    PrintMessage("FATAL ERROR: Failed to write to file: " + filePath)
+  EndIf
+EndEvent
+
+Event OnConsoleRemoveAutorunLine(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: RemoveAutorunLine <line number>")
+  
+  ; Check if the line number is provided
+  Int lineNumber = self.IntFromSArgument(sArgument, 1)
+  If lineNumber < 0
+    PrintMessage("FATAL ERROR: Invalid line number")
+    Return
+  EndIf
+  
+  ; Define the file path
+  String filePath = "Data/Autorun.txt"
+  
+  ; Check if the file exists
+  If !FileExists(filePath)
+    PrintMessage("FATAL ERROR: File does not exist: " + filePath)
+    Return
+  EndIf
+  
+  ; Read the entire file content
+  String fileContent = ReadFromFile(filePath)
+  
+  ; Split the content into lines
+  String[] lines = StringUtil.Split(fileContent, "\n")
+  
+  ; Check if the line number is valid
+  If lineNumber >= lines.Length
+    PrintMessage("FATAL ERROR: Line number out of range")
+    Return
+  EndIf
+  
+  ; Remove the specified line
+  lines[lineNumber] = ""
+  
+  ; Rebuild the file content without the removed line
+  String newContent = ""
+  Int i = 0
+  While i < lines.Length
+    If lines[i] != ""
+      newContent += lines[i] + "\n"
+    EndIf
+    i += 1
+  EndWhile
+  
+  ; Write the new content back to the file
+  Bool success = WriteToFile(filePath, newContent, false, false) ; Overwrite mode, no timestamp
+  
+  If success
+    PrintMessage("Line " + lineNumber + " removed")
+  Else
+    PrintMessage("FATAL ERROR: Failed to write to file: " + filePath)
+  EndIf
+EndEvent
+
+Event OnConsoleAddFormsToFormlist(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: AddFormsToFormlist(Formlist akFormList, Form akForm1, Form akForm2, Form akForm3, Form akForm4)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Formlist akFormList = self.FormFromSArgument(sArgument, 1) as Formlist
+  Form akForm1 = self.FormFromSArgument(sArgument, 2) as Form
+  Form akForm2 = self.FormFromSArgument(sArgument, 3) as Form
+  Form akForm3 = self.FormFromSArgument(sArgument, 4) as Form
+  Form akForm4 = self.FormFromSArgument(sArgument, 5) as Form
+
+  If akFormList == none || (akForm1 == none && akForm2 == none && akForm3 == none && akForm4 == none)
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  
+  If akForm1 != none
+    akFormList.AddForm(akForm1)
+    PrintMessage("Added " + self.GetFullID(akForm1) + " to " + self.GetFullID(akFormList))
+  EndIf
+  
+  If akForm2 != none
+    akFormList.AddForm(akForm2)
+    PrintMessage("Added " + self.GetFullID(akForm2) + " to " + self.GetFullID(akFormList))
+  EndIf
+  
+  If akForm3 != none
+    akFormList.AddForm(akForm3)
+    PrintMessage("Added " + self.GetFullID(akForm3) + " to " + self.GetFullID(akFormList))
+  EndIf
+  
+  If akForm4 != none
+    akFormList.AddForm(akForm4)
+    PrintMessage("Added " + self.GetFullID(akForm4) + " to " + self.GetFullID(akFormList))
+  EndIf
+    
+EndEvent
+
+Event OnConsoleAddFormToFormlists(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: AddFormsToFormlists(Form akForm, Formlist akFormList1, Formlist akFormList2, Formlist akFormList3, Formlist akFormList4)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Form akForm = self.FormFromSArgument(sArgument, 1) as Form
+  Formlist akFormList1 = self.FormFromSArgument(sArgument, 2) as Formlist
+  Formlist akFormList2 = self.FormFromSArgument(sArgument, 3) as Formlist
+  Formlist akFormList3 = self.FormFromSArgument(sArgument, 4) as Formlist
+  Formlist akFormList4 = self.FormFromSArgument(sArgument, 5) as Formlist
+
+  If akForm == none || (akFormList1 == none && akFormList2 == none && akFormList3 == none && akFormList4 == none)
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+
+  If akFormList1 != none
+    akFormList1.AddForm(akForm)
+    PrintMessage("Added " + self.GetFullID(akForm) + " to " + self.GetFullID(akFormList1))
+  EndIf
+  
+  If akFormList2 != none
+    akFormList2.AddForm(akForm)
+    PrintMessage("Added " + self.GetFullID(akForm) + " to " + self.GetFullID(akFormList2))
+  EndIf
+  
+  If akFormList3 != none
+    akFormList3.AddForm(akForm)
+    PrintMessage("Added " + self.GetFullID(akForm) + " to " + self.GetFullID(akFormList3))
+  EndIf
+  
+  If akFormList4 != none
+    akFormList4.AddForm(akForm)
+    PrintMessage("Added " + self.GetFullID(akForm) + " to " + self.GetFullID(akFormList4))
+  EndIf
+  
+    
+EndEvent
+
+Event OnConsoleCopyKeywords(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: CopyKeywords(Form akSource, Form akTarget)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Form akSource = self.FormFromSArgument(sArgument, 1) as Form
+  Form akTarget = self.FormFromSArgument(sArgument, 2) as Form
+
+  If akSource == none || akTarget == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+
+  Keyword[] sourceKeywords = akSource.GetKeywords()
+  If sourceKeywords.Length == 0
+    PrintMessage("Source " + self.GetFullID(akSource) +  "has no keywords ")
+    Return
+  EndIf
+
+  Int i = 0
+  While i < sourceKeywords.Length
+    PO3_SKSEFunctions.AddKeywordToForm(akTarget, sourceKeywords[i])
+    i += 1
+  EndWhile
+
+  PrintMessage("Copied " + sourceKeywords.Length + " keywords from " + self.GetFullID(akSource) + " to " + self.GetFullID(akTarget))
+EndEvent
+
+Event OnConsoleAddKeywordsToForm(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: AddKeywordsToForm(Form akForm, Keyword akKeyword1, Keyword akKeyword2, Keyword akKeyword3, Keyword akKeyword4)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Form akForm = self.FormFromSArgument(sArgument, 1) as Form
+  Keyword akKeyword1 = self.FormFromSArgument(sArgument, 2) as Keyword
+  Keyword akKeyword2 = self.FormFromSArgument(sArgument, 3) as Keyword
+  Keyword akKeyword3 = self.FormFromSArgument(sArgument, 4) as Keyword
+  Keyword akKeyword4 = self.FormFromSArgument(sArgument, 5) as Keyword
+
+  If akForm == none || (akKeyword1 == none && akKeyword2 == none && akKeyword3 == none && akKeyword4 == none)
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+
+  If akKeyword1 != none
+    PO3_SKSEFunctions.AddKeywordToForm(akForm, akKeyword1)
+    PrintMessage("Added " + self.GetFullID(akKeyword1) + " to " + self.GetFullID(akForm))
+  EndIf
+
+  If akKeyword2 != none
+    PO3_SKSEFunctions.AddKeywordToForm(akForm, akKeyword2)
+    PrintMessage("Added " + self.GetFullID(akKeyword2) + " to " + self.GetFullID(akForm))
+  EndIf
+
+  If akKeyword3 != none
+    PO3_SKSEFunctions.AddKeywordToForm(akForm, akKeyword3)
+    PrintMessage("Added " + self.GetFullID(akKeyword3) + " to " + self.GetFullID(akForm))
+  EndIf
+
+  If akKeyword4 != none
+    PO3_SKSEFunctions.AddKeywordToForm(akForm, akKeyword4)
+    PrintMessage("Added " + self.GetFullID(akKeyword4) + " to " + self.GetFullID(akForm))
+  EndIf
+      
+EndEvent
+
+Event OnConsoleRemoveKeywordsFromForm(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: RemoveKeywordsFromForm(Form akForm, Keyword akKeyword1, Keyword akKeyword2, Keyword akKeyword3, Keyword akKeyword4)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Form akForm = self.FormFromSArgument(sArgument, 1) as Form
+  Keyword akKeyword1 = self.FormFromSArgument(sArgument, 2) as Keyword
+  Keyword akKeyword2 = self.FormFromSArgument(sArgument, 3) as Keyword
+  Keyword akKeyword3 = self.FormFromSArgument(sArgument, 4) as Keyword
+  Keyword akKeyword4 = self.FormFromSArgument(sArgument, 5) as Keyword
+
+  If akForm == none || (akKeyword1 == none && akKeyword2 == none && akKeyword3 == none && akKeyword4 == none)
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+
+  If akKeyword1 != none
+    PO3_SKSEFunctions.RemoveKeywordOnForm(akForm, akKeyword1)
+    PrintMessage("Removed " + self.GetFullID(akKeyword1) + " from " + self.GetFullID(akForm))
+  EndIf
+
+  If akKeyword2 != none
+    PO3_SKSEFunctions.RemoveKeywordOnForm(akForm, akKeyword2)
+    PrintMessage("Removed " + self.GetFullID(akKeyword2) + " from " + self.GetFullID(akForm))
+  EndIf
+
+  If akKeyword3 != none
+    PO3_SKSEFunctions.RemoveKeywordOnForm(akForm, akKeyword3)
+    PrintMessage("Removed " + self.GetFullID(akKeyword3) + " from " + self.GetFullID(akForm))
+  EndIf
+
+  If akKeyword4 != none
+    PO3_SKSEFunctions.RemoveKeywordOnForm(akForm, akKeyword4)
+    PrintMessage("Removed " + self.GetFullID(akKeyword4) + " from " + self.GetFullID(akForm))
+  EndIf
+EndEvent
+
+Event OnConsoleAddKeywordToForms(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: AddKeywordToForms(Keyword akKeyword, Form akForm1, Form akForm2, Form akForm3, Form akForm4)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Keyword akKeyword = self.FormFromSArgument(sArgument, 1) as Keyword
+  Form akForm1 = self.FormFromSArgument(sArgument, 2) as Form
+  Form akForm2 = self.FormFromSArgument(sArgument, 3) as Form
+  Form akForm3 = self.FormFromSArgument(sArgument, 4) as Form
+  Form akForm4 = self.FormFromSArgument(sArgument, 5) as Form
+
+  If akKeyword == none || (akForm1 == none && akForm2 == none && akForm3 == none && akForm4 == none)
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+
+  If akForm1 != none
+    PO3_SKSEFunctions.AddKeywordToForm(akForm1, akKeyword)
+    PrintMessage("Added " + self.GetFullID(akKeyword) + " to " + self.GetFullID(akForm1))
+  EndIf
+  
+  If akForm2 != none
+    PO3_SKSEFunctions.AddKeywordToForm(akForm2, akKeyword)
+    PrintMessage("Added " + self.GetFullID(akKeyword) + " to " + self.GetFullID(akForm2))
+  EndIf
+  
+  If akForm3 != none
+    PO3_SKSEFunctions.AddKeywordToForm(akForm3, akKeyword)
+    PrintMessage("Added " + self.GetFullID(akKeyword) + " to " + self.GetFullID(akForm3))
+  EndIf
+  
+  If akForm4 != none
+    PO3_SKSEFunctions.AddKeywordToForm(akForm4, akKeyword)
+    PrintMessage("Added " + self.GetFullID(akKeyword) + " to " + self.GetFullID(akForm4))
+  EndIf
+
+EndEvent
+
+Event OnConsoleRemoveKeywordFromForms(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: RemoveKeywordFromForms(Keyword akKeyword, Form akForm1, Form akForm2, Form akForm3, Form akForm4)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Keyword akKeyword = self.FormFromSArgument(sArgument, 1) as Keyword
+  Form akForm1 = self.FormFromSArgument(sArgument, 2) as Form
+  Form akForm2 = self.FormFromSArgument(sArgument, 3) as Form
+  Form akForm3 = self.FormFromSArgument(sArgument, 4) as Form
+  Form akForm4 = self.FormFromSArgument(sArgument, 5) as Form
+
+  If akKeyword == none || (akForm1 == none && akForm2 == none && akForm3 == none && akForm4 == none)
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+
+  If akForm1 != none
+    PO3_SKSEFunctions.RemoveKeywordOnForm(akForm1, akKeyword)
+    PrintMessage("Removed " + self.GetFullID(akKeyword) + " from " + self.GetFullID(akForm1))
+  EndIf
+  
+  If akForm2 != none
+    PO3_SKSEFunctions.RemoveKeywordOnForm(akForm2, akKeyword)
+    PrintMessage("Removed " + self.GetFullID(akKeyword) + " from " + self.GetFullID(akForm2))
+  EndIf
+  
+  If akForm3 != none
+    PO3_SKSEFunctions.RemoveKeywordOnForm(akForm3, akKeyword)
+    PrintMessage("Removed " + self.GetFullID(akKeyword) + " from " + self.GetFullID(akForm3))
+  EndIf
+  
+  If akForm4 != none
+    PO3_SKSEFunctions.RemoveKeywordOnForm(akForm4, akKeyword)
+    PrintMessage("Removed " + self.GetFullID(akKeyword) + " from " + self.GetFullID(akForm4))
+  EndIf
+
+EndEvent
+
+Event OnConsoleFindEffectOnActor(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: FindEffectOnActor(Actor akActor, String asName)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akActor
+  String asName
+  If QtyPars == 1
+    akActor = GetSelectedReference() as Actor
+    asName = StringFromSArgument(sArgument, 1)
+  ElseIf QtyPars == 2
+    akActor = self.FormFromSArgument(sArgument, 1) as Actor
+    asName = StringFromSArgument(sArgument, 2)
+  EndIf
+  
+  If akActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+
+  MagicEffect[] MGEFs = PO3_SKSEFunctions.GetActiveEffects(akActor)
+  If MGEFs.Length == 0
+    PrintMessage("No active effects found on " + self.GetFullID(akActor))
+    Return
+  EndIf
+
+  Int i = 0
+  While i < MGEFs.Length
+    If StringUtil.Find(MGEFs[i].GetName(), asName) != -1
+      PrintMessage("Found " + self.GetFullID(MGEFs[i]) + " on " + self.GetFullID(akActor))
+      ActiveMagicEffect[] AMEs = PO3_SKSEFunctions.GetActiveMagicEffects(akActor, MGEFs[i])
+      Int j = 0
+      While j < AMEs.Length
+        PrintMessage("  - Instance " + j + ":")
+        PrintMessage("  - Magnitude: " + AMEs[j].GetMagnitude())
+        PrintMessage("  - Caster: " + AMEs[j].GetCasterActor())
+        string[] scripts = PO3_SKSEFunctions.GetScriptsAttachedToActiveEffect(AMEs[j])
+        PrintMessage("  - Attached scripts: ")
+        Int k = 0
+        While k < scripts.Length
+          PrintMessage("    - " + scripts[k])
+          k += 1
+        EndWhile
+        j += 1
+      EndWhile
+    EndIf
+    i += 1
+  EndWhile
+EndEvent
+
+Event OnConsoleFindKeywordOnForm(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: FindKeywordOnForm(Form akForm, String asName)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Form akForm
+  String asName
+  If QtyPars == 1
+    akForm = GetSelectedBase()
+    asName = StringFromSArgument(sArgument, 1)
+  ElseIf QtyPars == 2
+    akForm = self.FormFromSArgument(sArgument, 1)
+    asName = StringFromSArgument(sArgument, 2)
+  EndIf
+  Keyword[] keywords = akForm.GetKeywords()
+
+  If keywords.Length == 0
+    PrintMessage("No keywords found on " + self.GetFullID(akForm))
+    Return
+  EndIf
+
+  Int i = 0
+  While i < keywords.Length
+    If StringUtil.Find(keywords[i].GetName(), asName) != -1
+      PrintMessage("Found " + self.GetFullID(keywords[i]) + " on " + self.GetFullID(akForm))
+    EndIf
+    i += 1
+  EndWhile
+
+EndEvent
+
+Event OnConsolePlaceBefore(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: PlaceBefore(Form akForm = GetSelectedBase(), ObjectReference akRef = PlayerRef, int aiDistance = 1, abFadeIn = true)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Form akForm = FormFromSArgument(sArgument, 1, GetSelectedBase())
+  ObjectReference akRef = RefFromSArgument(sArgument, 2, PlayerRef)
+  Int aiDistance = IntFromSArgument(sArgument, 3, 1)
+  Bool abFadeIn = BoolFromSArgument(sArgument, 4, true)
+  If akForm == none || akRef == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  aiDistance = PapyrusUtil.ClampInt(aiDistance, 0, 100)
+  ObjectReference newRef = RPDefault_Utility.PlaceInFrontOfMe(akForm, akRef, 1)
+  PrintMessage("Duplicated " + self.GetFullID(akForm) + " as " + self.GetFullID(newRef) + " at " + self.GetFullID(akRef))
+EndEvent
+
+Event OnConsoleGetWornForms(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetWornForms(Actor akActor)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
+  If akActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  Form[] wornForms = SPE_Actor.GetWornForms(akActor)
+  If wornForms.Length == 0
+    PrintMessage("No worn forms found on " + self.GetFullID(akActor))
+    Return
+  EndIf
+  Int i = 0
+  While i < wornForms.Length
+    PrintMessage("#" + i + ": " + self.GetFullID(wornForms[i]))
+    i += 1
+  EndWhile
+
+EndEvent
+
+Event OnConsoleRemoveDecals(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: RemoveDecals(Actor akActor, Bool abIncludeWeapon = true)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akActor = ConsoleUtil.GetSelectedReference() as Actor
+  Bool abIncludeWeapon = BoolFromSArgument(sArgument, 1, true)
+  If akActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  SPE_ObjectRef.RemoveDecals(akActor, abIncludeWeapon)
+EndEvent
+
+Event OnConsoleGetRaceSlotMask(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetRaceSlotMask(Race akRace)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Race akRace = self.FormFromSArgument(sArgument, 1) as Race
+  If akRace == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  int slotMask = DbSKSEFunctions.GetRaceSlotMask(akRace)
+  PrintMessage("Slot mask of " + self.GetFullID(akRace) + " is " + slotMask)
+EndEvent
+
+Event OnConsoleSetRaceSlotMask(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetRaceSlotMask(Race akRace, int slotMask)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Race akRace = self.FormFromSArgument(sArgument, 1) as Race
+  int slotMask = self.IntFromSArgument(sArgument, 2)
+  If akRace == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  DbSKSEFunctions.SetRaceSlotMask(akRace, slotMask)
+  PrintMessage("Slot mask of " + self.GetFullID(akRace) + " set to " + slotMask)
+EndEvent
+
+Event OnConsoleAddRaceSlotToMask(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: AddSlotToMask(Race akRace, int slotMask)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Race akRace = self.FormFromSArgument(sArgument, 1) as Race
+  int slotMask = self.IntFromSArgument(sArgument, 2)
+  If akRace == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  DbSKSEFunctions.AddRaceSlotToMask(akRace, slotMask)
+  PrintMessage("Slot mask of " + self.GetFullID(akRace) + " added " + slotMask)
+EndEvent 
+
+Event OnConsoleRemoveRaceSlotFromMask(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: RemoveRaceSlotFromMask(Race akRace, int slotMask)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Race akRace = self.FormFromSArgument(sArgument, 1) as Race
+  int slotMask = self.IntFromSArgument(sArgument, 2)
+  If akRace == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  DbSKSEFunctions.RemoveRaceSlotFromMask(akRace, slotMask)
+  PrintMessage("Slot mask of " + self.GetFullID(akRace) + " removed " + slotMask)
+EndEvent
+
+Event OnConsoleGetAllArmorsForSlotMask(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetAllArmorsForSlotMask(Int aiSlot)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Int aiSlot = self.IntFromSArgument(sArgument, 1)
+  Int slotMask = Armor.GetMaskForSlot(aiSlot)
+  Armor[] armors = DbSKSEFunctions.GetAllArmorsForSlotMask(slotMask)
+  If armors.Length == 0
+    PrintMessage("No armors found for slot.")
+    Return
+  EndIf
+  Int i = 0
+  While i < armors.Length
+    PrintMessage("#" + i + ": " + self.GetFullID(armors[i]))
+    i += 1
+  EndWhile
+
+EndEvent
+
+Event OnConsoleAddAdditionalRaceToArmorAddon(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: AddAdditionalRaceToArmorAddon(ArmorAddon akArmorAddon, Race akRace)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  ArmorAddon akArmorAddon = self.FormFromSArgument(sArgument, 1) as ArmorAddon
+  Race akRace = self.FormFromSArgument(sArgument, 2) as Race
+  If akArmorAddon == none || akRace == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  DbSKSEFunctions.AddAdditionalRaceToArmorAddon(akArmorAddon, akRace)
+  PrintMessage("Added " + self.GetFullID(akRace) + " to " + self.GetFullID(akArmorAddon))
+EndEvent
+
+Event OnConsoleRemoveAdditionalRaceFromArmorAddon(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: RemoveAdditionalRaceFromArmorAddon(ArmorAddon akArmorAddon, Race akRace)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  ArmorAddon akArmorAddon = self.FormFromSArgument(sArgument, 1) as ArmorAddon
+  Race akRace = self.FormFromSArgument(sArgument, 2) as Race
+  If akArmorAddon == none || akRace == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  DbSKSEFunctions.RemoveAdditionalRaceFromArmorAddon(akArmorAddon, akRace)
+  PrintMessage("Remove " + self.GetFullID(akRace) + " from " + self.GetFullID(akArmorAddon))
+EndEvent
+
+Event OnConsoleRaceSlotMaskHasPartOf(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: RaceSlotMaskHasPartOf(Race akRace, int slotMask)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  Race akRace = self.FormFromSArgument(sArgument, 1) as Race
+  Int slotMask = self.IntFromSArgument(sArgument, 2)
+
+  If akRace == none
+    PrintMessage("FATAL ERROR: Race retrieval failed.")
+    Return
+  EndIf
+
+  Bool result = DbSKSEFunctions.RaceSlotMaskHasPartOf(akRace, slotMask)
+  PrintMessage("RaceSlotMaskHasPartOf: " + result)
+EndEvent
+
+Event OnConsoleArmorSlotMaskHasPartOf(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: ArmorSlotMaskHasPartOf(Armor akArmor, int slotMask)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  Armor akArmor = self.FormFromSArgument(sArgument, 1) as Armor
+  Int slotMask = self.IntFromSArgument(sArgument, 2)
+
+  If akArmor == none
+    PrintMessage("FATAL ERROR: Armor retrieval failed.")
+    Return
+  EndIf
+
+  Bool result = DbSKSEFunctions.ArmorSlotMaskHasPartOf(akArmor, slotMask)
+  PrintMessage("ArmorSlotMaskHasPartOf: " + result)
+EndEvent
+
+Event OnConsoleArmorAddonSlotMaskHasPartOf(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: ArmorAddonSlotMaskHasPartOf(ArmorAddon akArmorAddon, int slotMask)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  ArmorAddon akArmorAddon = self.FormFromSArgument(sArgument, 1) as ArmorAddon
+  Int slotMask = self.IntFromSArgument(sArgument, 2)
+
+  If akArmorAddon == none
+    PrintMessage("FATAL ERROR: ArmorAddon retrieval failed.")
+    Return
+  EndIf
+
+  Bool result = DbSKSEFunctions.ArmorAddonSlotMaskHasPartOf(akArmorAddon, slotMask)
+  PrintMessage("ArmorAddonSlotMaskHasPartOf: " + result)
+EndEvent
+
+Event OnConsoleGetArmorAddonRaces(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetArmorAddonRaces(ArmorAddon akArmorAddon)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  ArmorAddon akArmorAddon = self.FormFromSArgument(sArgument, 1) as ArmorAddon
+
+  If akArmorAddon == none
+    PrintMessage("FATAL ERROR: ArmorAddon retrieval failed.")
+    Return
+  EndIf
+
+  Race[] result = DbSKSEFunctions.GetArmorAddonRaces(akArmorAddon)
+  PrintMessage("GetArmorAddonRaces: " + result)
+EndEvent
+
+Event OnConsoleArmorAddonHasRace(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: ArmorAddonHasRace(ArmorAddon akArmorAddon, Race akRace)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  ArmorAddon akArmorAddon = self.FormFromSArgument(sArgument, 1) as ArmorAddon
+  Race akRace = self.FormFromSArgument(sArgument, 2) as Race
+
+  If akArmorAddon == none || akRace == none
+    PrintMessage("FATAL ERROR: ArmorAddon or Race retrieval failed.")
+    Return
+  EndIf
+
+  Bool result = DbSKSEFunctions.ArmorAddonHasRace(akArmorAddon, akRace)
+  PrintMessage("ArmorAddonHasRace: " + result)
+EndEvent
+
+Event OnConsoleSetMapMarkerVisible(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetMapMarkerVisible(ObjectReference MapMarker, bool visible)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  ObjectReference MapMarker = self.FormFromSArgument(sArgument, 1) as ObjectReference
+  Bool visible = self.BoolFromSArgument(sArgument, 2)
+
+  If MapMarker == none
+    PrintMessage("FATAL ERROR: MapMarker retrieval failed.")
+    Return
+  EndIf
+
+  Bool result = DbSKSEFunctions.SetMapMarkerVisible(MapMarker, visible)
+  PrintMessage("SetMapMarkerVisible: " + result)
+EndEvent
+
+Event OnConsoleSetCanFastTravelToMarker(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetCanFastTravelToMarker(ObjectReference MapMarker, bool canTravelTo)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  ObjectReference MapMarker = self.FormFromSArgument(sArgument, 1) as ObjectReference
+  Bool canTravelTo = self.BoolFromSArgument(sArgument, 2)
+
+  If MapMarker == none
+    PrintMessage("FATAL ERROR: MapMarker retrieval failed.")
+    Return
+  EndIf
+
+  Bool result = DbSKSEFunctions.SetCanFastTravelToMarker(MapMarker, canTravelTo)
+  PrintMessage("SetCanFastTravelToMarker: " + result)
+EndEvent
+
+Event OnConsoleGetKnownEnchantments(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetKnownEnchantments()")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Enchantment[] enchs = DbSKSEFunctions.GetKnownEnchantments()
+  If enchs.Length == 0
+    PrintMessage("No armors found for slot.")
+    Return
+  EndIf
+  Int i = 0
+  While i < enchs.Length
+    PrintMessage("#" + i + ": " + self.GetFullID(enchs[i]))
+    i += 1
+  EndWhile
+
+EndEvent
+
+Event OnConsoleReload(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: Reload()")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf  
+  DbSKSEFunctions.LoadMostRecentSaveGame()
+EndEvent
+
+Event OnConsoleGetRaceSlots(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetRaceSlots(Race akRace)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+      Return
+  EndIf
+  
+  Race akRace = self.FormFromSArgument(sArgument, 1) as Race
+  If akRace == none
+      PrintMessage("FATAL ERROR: FormID retrieval failed")
+      Return
+  EndIf
+  
+  int slotMask = DbSKSEFunctions.GetRaceSlotMask(akRace)
+  PrintMessage("Slot mask of " + self.GetFullID(akRace) + " is " + slotMask)
+  
+  ; Print the individual slots that are set
+  PrintMessage("Active slots:")
+  bool anySlot = false
+  
+  ; Check each slot from 30 to 61
+  int currentSlot = 30
+  while currentSlot <= 61
+      int mask = Math.LeftShift(1, currentSlot - 30) ; Calculate the mask for this slot
+      if Math.LogicalAnd(slotMask, mask) != 0
+          PrintMessage("  Slot " + currentSlot + " is active")
+          anySlot = true
+      endif
+      currentSlot += 1
+  endWhile
+  
+  if !anySlot
+      PrintMessage("  No slots are active")
+  endif
+EndEvent
+
+Event OnConsoleStartWhiterunAttack(String EventName, String sArgument, Float fArgument, Form Sender)
+    Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+    PrintMessage("Format: StartWhiterunAttack()")
+    If self.StringFromSArgument(sArgument, 1) == "?"
+        Return
+    EndIf
+    Quest CW03 = PO3_SKSEFunctions.GetFormFromEditorID("CW03") as Quest
+    if CW03 == none
+        PrintMessage("FATAL ERROR: CW03 retrieval failed")
+        Return
+    EndIf
+    (CW03 as CW03Script).StartWhiterunAttack()
+    PrintMessage("Started Whiterun attack")
+EndEvent
+
+Event OnConsoleOpenCustomSkillMenu(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: OpenCustomSkillMenu(string asSkillId)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  String asSkillId = self.StringFromSArgument(sArgument, 1)
+  CustomSkills.OpenCustomSkillMenu(asSkillId)
+  PrintMessage("Opened custom skill menu for skill: " + asSkillId)
+EndEvent
+
+Event OnConsoleShowTrainingMenu(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: ShowTrainingMenu(string asSkillId, int aiMaxLevel, Actor akTrainer)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  String asSkillId = self.StringFromSArgument(sArgument, 1)
+  Int aiMaxLevel = self.IntFromSArgument(sArgument, 2)
+  Actor akTrainer = self.FormFromSArgument(sArgument, 3) as Actor
+
+  If akTrainer == none
+    PrintMessage("FATAL ERROR: Trainer retrieval failed.")
+    Return
+  EndIf
+
+  CustomSkills.ShowTrainingMenu(asSkillId, aiMaxLevel, akTrainer)
+  PrintMessage("Displayed training menu for skill: " + asSkillId + " with max level: " + aiMaxLevel + " and trainer: " + self.GetFullID(akTrainer))
+EndEvent
+
+Event OnConsoleAdvanceSkill(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: AdvanceSkill(string asSkillId, float afMagnitude)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  String asSkillId = self.StringFromSArgument(sArgument, 1)
+  Float afMagnitude = self.FloatFromSArgument(sArgument, 2)
+
+  CustomSkills.AdvanceSkill(asSkillId, afMagnitude)
+  PrintMessage("Advanced skill: " + asSkillId + " by magnitude: " + afMagnitude)
+EndEvent
+
+Event OnConsoleIncrementSkill(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: IncrementSkill(string asSkillId, int aiCount)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  String asSkillId = self.StringFromSArgument(sArgument, 1)
+  Int aiCount = self.IntFromSArgument(sArgument, 2, 1)
+
+  CustomSkills.IncrementSkillBy(asSkillId, aiCount)
+  PrintMessage("Incremented skill: " + asSkillId + " by " + aiCount + " points")
+EndEvent
+
+Event OnConsoleGetSkillName(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetSkillName(string asSkillId)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  String asSkillId = self.StringFromSArgument(sArgument, 1)
+  String result = CustomSkills.GetSkillName(asSkillId)
+  PrintMessage("Skill name for ID " + asSkillId + " is: " + result)
+EndEvent
+
+Event OnConsoleGetSkillLevel(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetSkillLevel(string asSkillId)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+
+  String asSkillId = self.StringFromSArgument(sArgument, 1)
+  Int result = CustomSkills.GetSkillLevel(asSkillId)
+  PrintMessage("Skill level for ID " + asSkillId + " is: " + result)
+EndEvent
+
+Event OnConsoleSetInChargen(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetInChargen(bool abDisableSaving = false, bool abDisableWaiting = false, bool abShowControlsDisabledMessage = false)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  bool abDisableSaving = self.BoolFromSArgument(sArgument, 1, false)
+  bool abDisableWaiting = self.BoolFromSArgument(sArgument, 2, false)
+  bool abShowControlsDisabledMessage = self.BoolFromSArgument(sArgument, 3, false)
+  Game.SetInChargen(abDisableSaving, abDisableWaiting, abShowControlsDisabledMessage)
+  PrintMessage("Set in chargen")
+EndEvent
+
+Event OnConsolePacifyActor(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: Pacify(Actor akActor)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akActor = GetSelectedReference() as Actor
+  If QtyPars > 0
+    akActor = self.FormFromSArgument(sArgument, 1) as Actor
+  EndIf
+  If akActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  akActor.StopCombat()
+  akActor.StopCombatAlarm()
+  Faction[] factions = akActor.GetFactions(-128, 127)
+  if PlayerFaction == none
+    PrintMessage("FATAL ERROR: PlayerFaction retrieval failed")
+    Return
+  EndIf
+  Int i = 0
+  Int L = factions.Length
+  While i < L
+    if factions[i].GetReaction(PlayerFaction) < 0
+      akActor.RemoveFromFaction(factions[i])
+      PrintMessage("Removed " + self.GetFullID(akActor) + " from " + self.GetFullID(factions[i]))
+    EndIf
+    i += 1
+  EndWhile
+  PrintMessage("Pacified " + self.GetFullID(akActor))
+EndEvent
+
+Event OnConsoleWhyHostile(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: WhyHostile(Actor akReference = PlayerRef, Actor akHostile = GetConsoleReference())")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akHostile = GetSelectedReference() as Actor
+  Actor akReference = Game.GetPlayer()
+  If QtyPars == 1
+    akReference = self.FormFromSArgument(sArgument, 1) as Actor
+  ElseIf QtyPars == 2
+    akReference = self.FormFromSArgument(sArgument, 1) as Actor
+    akHostile = self.FormFromSArgument(sArgument, 2) as Actor
+  EndIf
+
+  If akHostile.GetRelationshipRank(akReference) < 0
+    PrintMessage("Relationship rank is " + akHostile.GetRelationshipRank(Game.GetPlayer()) )
+  EndIf
+  
+  Faction[] factions = akHostile.GetFactions(-128, 127)
+  if PlayerFaction == none
+    PrintMessage("FATAL ERROR: PlayerFaction retrieval failed")
+    Return
+  EndIf
+  Int i = 0
+  Int L = factions.Length
+  While i < L
+    if factions[i].GetReaction(PlayerFaction) < 0
+      PrintMessage(self.GetFullID(akHostile) + " is on hostile faction " + self.GetFullID(factions[i]))
+    EndIf
+    i += 1
+  EndWhile
+
+EndEvent
+
+Event OnConsoleGetLightingTemplate(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetLightingTemplate(Cell akCell)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Cell akCell = self.FormFromSArgument(sArgument, 1) as Cell
+  if akCell == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  LightingTemplate template = PO3_SKSEFunctions.GetLightingTemplate(akCell)
+  PrintMessage("Lighting template: " + self.GetFullID(template))
+EndEvent
+
+Event OnConsoleSetLightingTemplate(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetLightingTemplate(Cell akCell, LightingTemplate akTemplate)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Cell akCell = self.FormFromSArgument(sArgument, 1) as Cell
+  LightingTemplate akTemplate = self.FormFromSArgument(sArgument, 2) as LightingTemplate
+  if akCell == none || akTemplate == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  PO3_SKSEFunctions.SetLightingTemplate(akCell, akTemplate)
+  PrintMessage("Set lighting template " + self.GetFullID(akTemplate) + " on " + self.GetFullID(akCell))
+EndEvent
+
+Event OnConsoleGetVendorFactionContainer(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetVendorFactionContainer(Actor akActor)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akActor = GetSelectedReference() as Actor
+  If QtyPars == 1
+    akActor = self.RefFromSArgument(sArgument, 1) as Actor
+  EndIf
+  if akActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  Faction resultFaction = PO3_SKSEFunctions.GetVendorFaction(akActor)
+  ObjectReference result = PO3_SKSEFunctions.GetVendorFactionContainer(resultFaction)
+  PrintMessage("Vendor faction container: " + self.GetFullID(result))
+EndEvent
+
+
+
+Event OnConsoleGetRefNodeNames(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: GetRefNodeNames(ObjectReference akRef = GetSelectedReference(), String asSearchString, bool abFirstPerson = false)")
+
+  PrintMessage("NODE NAMES")
+  PrintMessage("===================================")
+  ObjectReference akRef = GetSelectedReference()
+  String searchTerm = self.StringFromSArgument(sArgument, 1)
+  Bool abFirstPerson = self.BoolFromSArgument(sArgument, 2, false)
+  If QtyPars == 3
+    akRef = self.RefFromSArgument(sArgument, 1) as ObjectReference
+    searchTerm = self.StringFromSArgument(sArgument, 2)
+    abFirstPerson = self.BoolFromSArgument(sArgument, 3, false)
+  EndIf
+  If akRef == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  String[] nodeNames = DbSKSEFunctions.GetAll3DNodeNamesForRef(akRef, abFirstPerson)
+  Bool found = false
+  Int i = 0
+
+  While i < nodeNames.Length
+    If StringUtil.Find(nodeNames[i], searchTerm) != -1 || QtyPars == 0
+      PrintMessage(nodeNames[i])
+      found = true
+    EndIf
+    i += 1
+  Endwhile
+
+  if !found
+    PrintMessage("No matching node names found")
+  EndIf
+  PrintMessage("===================================")
+EndEvent
+
+Event OnConsoleSetExpressionPhoneme(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetExpressionPhoneme(int aiIndex, float afValue)")
+    PrintMessage("EXPRESSION PHONEME INDEX")
+    PrintMessage("===================")
+    PrintMessage("0 - Aah")
+    PrintMessage("1 - BigAah")
+    PrintMessage("2 - BMP")
+    PrintMessage("3 - ChJSh")
+    PrintMessage("4 - DST")
+    PrintMessage("5 - Eee")
+    PrintMessage("6 - Eh")
+    PrintMessage("7 - FV")
+    PrintMessage("8 - I")
+    PrintMessage("9 - K")
+    PrintMessage("10 - N")
+    PrintMessage("11 - Oh")
+    PrintMessage("12 - OohQ")
+    PrintMessage("13 - R")
+    PrintMessage("14 - Th")
+    PrintMessage("15 - W")
+    PrintMessage("===================")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akActor = GetSelectedReference() as Actor
+  Int aiIndex = self.IntFromSArgument(sArgument, 1)
+  Float afValue = self.FloatFromSArgument(sArgument, 2, 0.0)
+  If akActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+
+  akActor.SetExpressionPhoneme(aiIndex, afValue)
+  PrintMessage("Set expression phoneme override " + aiIndex + " on " + self.GetFullID(akActor))
+EndEvent
+
+Event OnConsoleSetExpressionModifier(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: SetExpressionModifier(int aiIndex, float afValue)")
+    PrintMessage("EXPRESSION MODIFIER NDEX")
+    PrintMessage("===================")
+    PrintMessage("0 - BlinkLeft")
+    PrintMessage("1 - BlinkRight")
+    PrintMessage("2 - BrowDownLeft")
+    PrintMessage("3 - BrowDownRight")
+    PrintMessage("4 - BrowInLeft")
+    PrintMessage("5 - BrowInRight")
+    PrintMessage("6 - BrowUpLeft")
+    PrintMessage("7 - BrowUpRight")
+    PrintMessage("8 - LookDown")
+    PrintMessage("9 - LookLeft")
+    PrintMessage("10 - LookRight")
+    PrintMessage("11 - LookUp")
+    PrintMessage("12 - SquintLeft")
+    PrintMessage("13 - SquintRight")
+    PrintMessage("14 - HeadPitch")
+    PrintMessage("15 - HeadRoll")
+    PrintMessage("16 - HeadYaw")
+    PrintMessage("===================")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akActor = GetSelectedReference() as Actor
+  Int aiIndex = self.IntFromSArgument(sArgument, 1)
+  Float afValue = self.FloatFromSArgument(sArgument, 2, 0.0)
+  If akActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  akActor.SetExpressionModifier(aiIndex, afValue)
+  PrintMessage("Set expression modifier override " + aiIndex + " on " + self.GetFullID(akActor))
+EndEvent
+
+Event OnConsoleResetExpressionOverrides(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: ResetExpressionOverrides()")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  Actor akActor = GetSelectedReference() as Actor
+  If akActor == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  akActor.ResetExpressionOverrides()
+  PrintMessage("Reset expression overrides on " + self.GetFullID(akActor))
+EndEvent
+
+Event OnConsoleShowAsHelpMessage(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: ShowAsHelpMessage(Message afMessage, String asEvent, float afDuration, float afInterval, int aiMaxTimes)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  Endif
+  Message afMessage = self.FormFromSArgument(sArgument, 1) as Message
+  String asEvent = self.StringFromSArgument(sArgument, 2)
+  Float afDuration = self.FloatFromSArgument(sArgument, 3, 0.0)
+  Float afInterval = self.FloatFromSArgument(sArgument, 4, 0.0)
+  Int aiMaxTimes = self.IntFromSArgument(sArgument, 5, 0)
+  If afMessage == none
+    PrintMessage("FATAL ERROR: FormID retrieval failed")
+    Return
+  EndIf
+  afMessage.ShowAsHelpMessage(asEvent, afDuration, afInterval, aiMaxTimes)
+  PrintMessage("Showed help message: " + asEvent)
+EndEvent
+
+Event OnConsoleResetHelpMessage(String EventName, String sArgument, Float fArgument, Form Sender)
+  Int QtyPars = GetDebug(EventName, sArgument, fArgument, Sender)
+  PrintMessage("Format: ResetHelpMessage(String asEvent)")
+  If self.StringFromSArgument(sArgument, 1) == "?"
+    Return
+  EndIf
+  String asEvent = self.StringFromSArgument(sArgument, 1)
+  Message.ResetHelpMessage(asEvent)
+  PrintMessage("Reset help message")
+EndEvent
 
 
 ;
