@@ -19,6 +19,837 @@ WIP / Known Bugs
 * Providing arguments with spaces is untested. Where possible it simply removes the command name from the returned string (where it's just the command name plus the arguments) as in the SetClipboard command above, but elsewhere it uses a possibly buggy implementation that requires quoting the argument **with double quotes**. Only a couple of functions out of the hundreds will possibly require you to use spaces so, again, you may use this without fear.
 * StringArrFromSArgument was not yet adapted to the above format so it's 100% gonna be buggy wherever it's used as it will detect a different number of arguments compared to the function StringFromSArgument that is the bedrock of this script.
 
+IMPLEMENTED FUNCTIONS
+===
+ShowGiftMenu
+SetOutfit
+Dismount
+GetActorWarmthRating
+MoveToPackageLocation 
+SetEyeTexture
+ShowBarterMenu
+UpdateWeight
+ReplaceHeadPart
+ChangeHeadPart
+GetEnchantment
+SetEnchantment
+AddToMap
+AddKeywordToRef
+RemoveKeywordFromRef
+AddKeyIfNeeded
+ForceAddRagdollToWorld
+ForceRemoveRagdollFromWorld
+SetVampire
+Bite
+TurnVampire
+TurnBetterVampire
+ApplyMaterialShader
+StopAllShaders
+StopArtObject
+SetArtObject
+ToggleChildNode
+GetAllEffectShaders
+GetAllArtObjects
+FindAllReferencesOfFormType
+FindAllReferencesOfType
+SelectCrosshair
+GetRunningPackage
+CreatePersistentForm
+AddMagicEffect
+GetRefAliases
+ShowMenu
+HideMenu
+ToggleOpenSleepWaitMenu
+VCSHelp
+FormTypeHelp
+ReplaceFaceTextureSet 
+ReplaceSkinTextureSet
+SetHairColor
+SetHeadPartTextureSet
+SetSkinColor
+SetSkinAlpha
+SetKey
+MarkFavorite
+UnmarkFavorite
+SetSoundDescriptor
+CreateSoundMarker
+PlaySound
+PlaySoundDescriptor
+ClearMagicEffects
+CopyMagicEffects
+CopyAppearance
+SetSpellTomeSpell
+SetSpellAutoCalculate
+SetSpellCostOverride
+SetSpellChargeTime
+SetSpellCastDuration
+SetSpellRange
+SetSpellCastingPerk
+CreateColorForm
+Teleport (Tel)
+SoundPause
+SoundUnpause
+SoundMute
+SoundUnmute
+SetVolume
+SaveEx
+Del
+AttachPapyrusScript
+AddKeywordToForm
+RemoveKeywordFromForm
+GetFormDescription
+AddMagicEffectToSpell (AddMGEF)
+GetFormTypeAll
+CreateXMarkerRef
+GetEnchantArt
+GetCastingArt
+GetHitEffectArt
+GetEnchantShader
+GetHitShader
+SetEnchantArt
+SetCastingArt
+SetEnchantShader
+SetHitShader
+RemoveAllPerks
+ResetActor3D
+AddPackageIdle
+RemovePackageIdle
+GetFormIDFromEditorID
+GetEDIDFromFormID
+GetFormModName
+GetScriptsAttachedToActiveEffect
+DismissAllSummons
+AddMagicEffectToEnchantment
+RemoveMagicEffectFromEnchantment
+GetConditionList
+Sleep
+LaunchSpell
+GetMenuContainer
+SetItemHealthPercent
+SetDisplayName
+EnchantObject
+ClearDestruction
+PlaceAroundReference
+SaveCharacter
+LoadCharacter
+RecordSignatureHelp (RS)
+PlayIdleWithTarget (PIWT)
+GetEquipType
+SetEquipType
+GetDialogueTarget
+ForceFirstPerson
+ForceThirdPerson
+SetPlayerAIDriven
+ShowLimitedRaceMenu
+SetPlayersLastRiddenHorse
+TriggerScreenBlood
+TapKey
+HoldKey
+ReleaseKey
+GetLocationKeywordData
+SetItemMaxCharge
+SetArtModelPath
+SetLocationKeywordData
+SetItemCharge
+VCSEquipItem (vcsei)
+VCSEquipShout (vcsesh)
+VCSEquipSpell (vcsesp)
+SetRestrained
+RemoveAllPerks
+RemoveAllVisiblePerks
+RemoveAllSpells
+RGBToInt
+GetItemUniqueID
+SetItemDyeColor
+ClearItemDyeColor
+UpdateItemDyeColor
+RevertOverlays
+GetObjectUniqueID
+GetItemDyeColor
+SetItemTextureLayerColor
+GetItemTextureLayerColor
+ClearItemTextureLayerColor
+SetItemTextureLayerType
+GetItemTextureLayerType
+ClearItemTextureLayerType
+SetItemTextureLayerTexture
+GetItemTextureLayerTexture
+ClearItemTextureLayerTexture
+SetItemTextureLayerBlendMode
+GetItemTextureLayerBlendMode
+ClearItemTextureLayerBlendMode
+UpdateItemTextureLayers
+AddWeaponOverrideTextureSet
+ApplyWeaponOverrides
+AddSkinOverrideTextureSet
+ApplySkinOverrides
+RemoveArmorAddonOverride (RemoveAAOverride)
+StartDraggingObject
+PrintArgsAsStrings
+AddPackageOverride
+RemovePackageOverride
+CountPackageOverride
+ClearPackageOverride
+RemoveAllPackageOverride
+SetChargeTimeAll
+SpellFlagHelp
+GetWorldFieldOfView
+GetWorldFOV
+SetWorldFieldOfView
+SetWorldFOV
+GetFirstPersonFieldOfView
+GetFirstPersonFOV
+SetFirstPersonFieldOfView
+SetFirstPersonFOV
+SetClipBoardText
+SetDescription
+ResetDescription
+GetPackageTemplate
+GetSeasonOverride
+SetSeasonOverride
+ClearSeasonOverride
+MenuHelp
+CreateUICallback
+VampireFeed
+BlockActivation
+VCSAddPerk (vcsap)
+VCSRemovePerk (vcsrp)
+AllowPCDialogue
+MakePlayerFriend
+PreventDetection
+RegenerateHead
+KillSilent
+KillEssential
+PathToReference
+ClearForcedMovement
+SetUnconscious
+GetNthHeadPart
+SetNthHeadPart
+SetDoorDestination (SetDestination)
+Duplicate
+SetLinkedRef
+RemAllItems
+GetFormsWithScriptAttached
+GetAliasesWithScriptAttached
+GetRefAliasesWithScriptAttached
+GetLastMenuOpened
+CreateFormList
+CreateKeyword
+CreateConstructibleObject
+CreateTextureSet
+GetAllConstructibleObjects
+GetActorPlayableSpells (GetPlayableSpells)
+GetAshPileLinkedRef
+RemoveAllInventoryEventFilters
+SetActorOwner
+SetHarvested
+SetOpen
+GetCurrentScene
+FreezeActor
+GetMaterialType
+GetActiveGamebryoAnimation
+NiOverrideHelp
+SetHeadpartValidRaces (SetHDPTValidRaces)
+GetKeywords
+LearnEnchantment
+GetAllRefsInGrid
+GetButtonForDXScanCode
+CalmActor (Calm)
+EnableSurvivalFeature
+DisableSurvivalFeature
+RestoreColdLevel
+RestoreHungerLevel
+RestoreExhaustionLevel
+StartCannibal
+GetButtonForDXScanCode
+CalmActor (Calm)
+GetQuality
+SetQuality
+CastEnchantment
+CastPotion
+CastIngredient
+SetRefAsNoAIAcquire
+TrainWith
+QueryStat
+SetMiscStat
+HeadpartHelp
+CollisionHelp
+FactionFlagHelp
+GetSkillLegendaryLevel
+SetSkillLegendaryLevel
+AVHelp
+GetSlowTimeMult
+SetSlowTimeMult
+ApplyMeleeHit
+ApplyHit
+TemperEquipment (Temper)
+TemperWornEquipment (TemperWorn)
+MagicEffectHelp
+GetFootstepSet
+SetFootstepSet
+RaceHelp
+SetRecordFlag
+ClearRecordFlag
+IsRecordFlagSet
+FormRecordHelp
+SetObjectRefFlag
+GetRace
+FormHelp
+GetActiveQuests
+PlayDebugShader
+GetMapMarkerIconType
+SetMapMarkerIconType
+GetMapMarkerName
+SetMapMarkerName
+GetCellOrWorldSpaceOriginForRef
+SetCellOrWorldSpaceOriginForRef
+GetCurrentMapMarkerRefs
+GetAllMapMarkerRefs
+GetItemHealthPercent
+HasNodeOverride
+AddNodeOverrideFloat
+AddNodeOverrideInt
+AddNodeOverrideBool
+AddNodeOverrideString
+AddNodeOverrideTextureSet
+GetNodeOverrideFloat
+GetNodeOverrideInt
+GetNodeOverrideBool
+GetNodeOverrideString
+GetNodeOverrideTextureSet
+GetNodePropertyFloat
+GetNodePropertyInt
+GetNodePropertyBool
+GetNodePropertyString
+ApplyNodeOverrides
+DrawWeapon
+SheatheWeapon
+IdleHelp
+PlayIdle (PI)
+PlayIdleWithTarget (PIWT)
+PlaySubGraphAnimation (PSGA)
+SetShaderType
+IsScriptAttachedToForm
+GetScriptsAttachedToForm
+RemoveMagicEffectFromSpell (RMGEF)
+GetSpellType
+SetSpellCastingType
+SetSpellDeliveryType
+SetSpellType
+SetSpellMagicEffect
+GetOutfit
+SetHeight
+GetHeight
+GetCurrentMusicType
+GetNumberOfTracksInMusicType
+GetMusicTypeTrackIndex
+SetMusicTypeTrackIndex
+GetMusicTypePriority
+SetMusicTypePriority
+GetMusicTypeStatus
+DispelEffect
+BlendColorWithSkinTone
+GetHeadPartTextureSet
+GetEquippedArmorInSlot
+SetHeadpartAlpha
+SetActorRefraction
+RevertSkinOverlays
+RevertHeadOverlays
+GetEquippedShout
+GetEquippedShield
+GetEquippedWeapon
+GetEquippedSpell
+GetLastPlayerActivatedRef
+GetLastPlayerMenuActivatedRef
+QueueNiNodeUpdate
+GetActorbaseFaceTextureSet (GetABFaceTextureSet)
+SetActorbaseFaceTextureSet (SetABFaceTextureSet)
+GetActorbaseSkin (GetABSkin)
+SetActorbaseSkin (SetABSkin)
+GetCastTime
+GetSpellMagicEffects
+GetSpellEquipType
+SetSpellEquipType
+SetHitEffectArt
+CombineSpells
+RemoveFormFromFormlist (RemFromFLST)
+SetMagicEffectSound (SetMGEFSound)
+GetMagicEffectSound (GetMGEFSound)
+CopySpellEquipType
+GetOutfitNumParts
+GetOutfitNthPart
+AddFormToLeveledItem
+RevertLeveledItem
+GetLeveledItemChanceNone
+SetLeveledItemChanceNone
+GetLeveledItemChanceGlobal
+SetLeveledItemChanceGlobal
+GetLeveledItemNumForms
+GetLeveledItemNthForm
+GetLeveledItemNthLevel
+SetLeveledItemNthLevel
+GetLeveledItemNthCount
+SetLeveledItemNthCount
+UnsetOutfit
+GetSlotMask
+SetSlotMask
+AddSlotToMask
+RemoveSlotFromMask
+GetMaskForSlot
+GetArmorModelPath
+SetArmorModelPath
+GetArmorIconPath
+SetArmorIconPath
+GetArmorMessageIconPath
+SetArmorMessageIconPath
+GetArmorWeightClass
+SetArmorWeightClass
+SendVampirismStateChanged
+SendLycanthropyStateChanged
+StartSneaking
+SetAttackActorOnSight
+SetDontMove
+SlotHelp
+GetActualWaterLevel
+GetWaterLevel
+GetFactionOwner
+GetActorOwner
+SetPublic
+SetFogPower
+SetFogPlanes
+SetFogColor
+GetArtModelPath
+GetItemMaxCharge
+SetActorbaseOutfit
+UnsetActorbaseOutfit
+PlaceDoor
+GetWorldModelPath (GetWorldModel)
+SetWorldModelPath (SetWorldModel)
+CopyWorldModelPath (CopyWorldModel)
+GetArmorEnchantment
+GetWeaponEnchantment
+GetABNumHeadParts
+GetABNthHeadPart
+SetABNthHeadPart
+GetABIndexOfHeadPartByType
+GetABNumOverlayHeadParts
+GetABNthOverlayHeadPart
+GetABIndexOfOverlayHeadPartByType
+GetABFaceMorph
+SetABFaceMorph
+GetABFacePreset
+SetABFacePreset
+GetABSkinFar
+SetABSkinFar
+GetABTemplate
+SetAutoLock
+RemoveAllArmorReferenceOverrides (RemAllArmorRefOverrides)
+RemoveAllNodeReferenceOverrides (RemAllNodeRefOverrides)
+RemoveAllSkinReferenceOverrides (RemAllSkinRefOverrides)
+RemoveAllWeaponReferenceOverrides (RemAllWeaponRefOverrides)
+SetNthTexturePath
+GetNthTexturePath
+GetTextureSetNumPaths
+GetMagicEffectLight (GetMGEFLight)
+SetMagicEffectLight (SetMGEFLight)
+AddKeyword
+RemoveKeyword
+ReplaceKeyword
+GetTreeIngredient
+SetTreeIngredient
+IsKeyPressed
+GetNumKeysPressed
+GetNthKeyPressed
+GetMappedKey
+GetMappedControl
+PrecacheCharGenClear
+UpdateThirdPerson
+ModObjectiveGlobal
+GetQuestAliases
+GetMagicEffectAssociatedSkill (GetMGEFAssociatedSkill) 
+SetMagicEffectAssociatedSkill (SetMGEFAssociatedSkill)
+GetMagicEffectResistance (GetMGEFResistance)
+SetMagicEffectResistance (SetMGEFResistance)
+GetMagicEffectImpactDataSet (GetMGEFImpactDataSet)
+SetMagicEffectImpactDataSet (SetMGEFImpactDataSet)
+GetMagicEffectImageSpaceMod (GetMGEFIMOD)
+SetMagicEffectImageSpaceMod (SetMGEFIMOD)
+GetMagicEffectPerk (GetMGEFPerk)
+SetMagicEffectPerk (SetMGEFPerk)
+GetMagicEffectEquipAbility (GetMGEFEquipAbility)
+SetMagicEffectEquipAbility (SetMGEFEquipAbility)
+SetEffectFlag
+ClearEffectFlag
+IsEffectFlagSet
+GetMagicEffectExplosion
+SetMagicEffectExplosion
+GetMagicEffectProjectile
+SetMagicEffectProjectile
+GetMagicEffectSkillLevel
+SetMagicEffectSkillLevel
+GetMagicEffectBaseCost
+SetMagicEffectBaseCost
+GetMagicEffectCastTime
+SetMagicEffectCastTime
+GetMagicEffectArea
+SetMagicEffectArea
+GetIngredientNthEffectArea
+SetIngredientNthEffectArea
+GetIngredientNthEffectMagnitude
+SetIngredientNthEffectMagnitude
+GetIngredientNthEffectDuration
+SetIngredientNthEffectDuration
+SetRaceFlag
+ClearRaceFlag
+IsRaceFlagSet
+GetRaceSkin
+SetRaceSkin
+GetRaceDefaultVoiceType
+SetRaceDefaultVoiceType
+GetActorValueInfoByName (GetAVIFByName)
+GetArmorAddonModelPath (GetAAModelPath)
+SetArmorAddonModelPath (SetAAModelPath)
+GetConstructibleObjectResult (GetCOResult)
+SetConstructibleObjectResult (SetCOResult)
+GetConstructibleObjectResultQuantity (GetCOResultQuantity)
+SetConstructibleObjectResultQuantity (SetCOResultQuantity)
+GetConstructibleObjectNumIngredients (GetCONumIngredients)
+GetConstructibleObjectNthIngredient (GetCONthIngredient)
+SetConstructibleObjectNthIngredient (SetCONthIngredient)
+GetConstructibleObjectNthIngredientQuantity (GetCONthIngredientQuantity)
+SetConstructibleObjectNthIngredientQuantity (SetCONthIngredientQuantity)
+GetConstructibleObjectWorkbenchKeyword (GetCOWorkbenchKeyword)
+SetConstructibleObjectWorkbenchKeyword (SetCOWorkbenchKeyword)
+GetFloraIngredient
+SetFloraIngredient
+GetPotionNthEffectArea
+SetPotionNthEffectArea
+GetPotionNthEffectMagnitude
+SetPotionNthEffectMagnitude
+GetPotionNthEffectDuration
+SetPotionNthEffectDuration
+GetHeadpartValidRaces (GetHDPTValidRaces)
+GetHeadPartType (GetHDPTType)
+GetAllHeadParts (GetHDPTs)
+GetABClass
+SetABClass
+GetABSpells
+GetLocationCleared
+SetLocationCleared
+GetLocationParent
+SetLocationParent
+ClearCachedFactionFightReactions (CCFFR)
+GetLocalGravity
+FindForm (FF)
+GetAddonModels
+GetEffectShaderTotalCount
+IsEffectShaderFlagSet
+GetMembraneFillTexture
+GetMembraneHolesTexture
+GetMembranePaletteTexture
+GetParticleFullCount
+GetParticlePaletteTexture
+GetParticleShaderTexture
+GetParticlePersistentCount
+SetAddonModels
+ClearEffectShaderFlag
+SetEffectShaderFlag
+SetMembraneColorKeyData
+SetMembraneFillTexture
+SetMembraneHolesTexture
+SetMembranePaletteTexture
+SetParticleColorKeyData
+SetParticlePaletteTexture
+SetParticlePersistentCount
+SetParticleShaderTexture
+KnockAreaEffect
+ResetReference
+DeleteReference
+DisableReference
+PlayAnimation
+PlayAnimationAndWait
+PlayGamebryoAnimation
+PlayImpactEffect
+PlaySyncedAnimationSS
+PlaySyncedAnimationAndWaitSS
+PushActorAway
+SetAnimationVariableBool
+SetAnimationVariableInt
+SetAnimationVariableFloat
+ApplyHavokImpulse
+MoveToNode
+NodeHelp
+BodyMorphHelp
+MorphHelp
+GetBodyMorph
+SetBodyMorph
+GetWornItemID
+SendTrespassAlarm
+ClearArrested
+ClearExpressionOverride
+ClearExtraArrows
+ClearKeepOffsetFromActor
+ClearLookAt
+ForceMovementSpeed
+ForceMovementRotationSpeed
+ForceMovementSpeedRamp
+ScaleObject3D
+GetActorbaseDeadCount
+GetActorbaseSex
+SetActorbaseInvulnerable
+GetKeyword
+GetActorbaseVoiceType (GetABVT)
+SetActorbaseVoiceType (SetABVT)
+GetActorbaseCombatStyle (GetABCS)
+SetActorbaseCombatStyle (SetABCS)
+GetActorbaseWeight (GetABWeight)
+SetActorbaseWeight (SetABWeight)
+GetActorDialogueTarget (GetDialogueTarget)
+SetCameraTarget
+GetActorFactions (GetFactions)
+GetFactionInformation (GetFactInfo)
+GetMagicEffectAssociatedForm (GetMGEFForm)
+GetHazardArt
+GetHazardIMOD
+GetHazardIMODRadius
+GetHazardIPDS
+GetHazardLifetime
+GetHazardLight
+GetHazardLimit
+GetHazardRadius
+GetHazardSound
+GetHazardSpell
+GetHazardTargetInterval
+IsHazardFlagSet
+ClearHazardFlag
+SetHazardArt
+SetHazardFlag
+SetHazardIMOD
+SetHazardIMODRadius
+SetHazardIPDS
+SetHazardLifetime
+SetHazardLight
+SetHazardLimit
+SetHazardRadius
+SetHazardSound
+SetHazardSpell
+SetHazardTargetInterval
+GetLightColor
+GetLightFade
+GetLightFOV
+GetLightRadius
+GetLightRGB
+GetLightShadowDepthBias (GetLightSDB)
+GetLightType
+SetLightColor
+SetLightFade
+SetLightFOV
+SetLightRadius
+SetLightRGB
+SetLightShadowDepthBias (SetLightSDB)
+SetLightType
+GetMagicEffectArchetype (GetMGEFArchetype)
+GetMagicEffectPrimaryActorValue (GetMGEFPrimaryAV)
+GetMagicEffectySecondaryActorValue (GetMGEFSecondaryAV)
+SetSubGraphFloatVariable
+GetWorldModelNthTextureSet
+SetWorldModelNthTextureSet
+GetWorldModelTextureSets
+GetFormInfo (GFI)
+SendModEvent (SMI)
+GetReferenceInfo (GRI)
+LearnIngredientEffect (LearnEffect)
+SayTopic
+VCSUnequipItem (UnequipItemEx) (vcsui)
+SetActorCalmed
+GetKeycodeString
+SwapEquipment
+GetQuestMarker
+FindAllArmorsForSlot
+ForceStartScene
+StartScene
+StopScene
+IsScenePlaying
+GetArmorAddonModelNumTextureSets
+GetArmorAddonModelNthTextureSet
+SetArmorAddonModelNthTextureSet
+GetArmorNumArmorAddons
+GetArmorNthArmorAddon
+GetArmorModelArmorAddons
+GetArmorAddons
+SetFreeCameraSpeed
+GetFormsInFormList
+GetGlobalVariable
+GetFormMagicEffects
+GetArmorAddonSlotMask
+SetArmorAddonSlotMask
+AddArmorAddonSlotToMask
+RemoveArmorAddonSlotFromMask
+GetWeaponModelPath
+SetWeaponModelPath
+GetWeaponIconPath
+SetWeaponIconPath
+GetWeaponMessageIconPath
+SetWeaponMessageIconPath
+GetArmorWarmthRating
+GetArmorArmorRating
+SetArmorArmorRating
+FlattenLeveledList
+GetRaceSlotMask
+SetRaceSlotMask
+AddRaceSlotToMask
+SetLocalGravity
+GetColorFormColor (GetCLFMColor)
+SetColorFormColor (SetCLFMColor)
+SetActorSex
+GetVisualEffectArtObject (GetVEARTO)
+SetVisualEffectArtObject (SetVEARTO)
+SelectObjectUnderFeet
+GetTNGBoolValue
+SetTNGBoolValue
+GetAllTNGAddonsCount
+GetAllTNGPossibleAddons
+GetTNGAddonStatus
+SetTNGAddonStatus
+GetTNGRgNames
+GetTNGRgInfo
+GetTNGRgAddons
+GetTNGRgAddon
+SetTNGRgAddon
+GetTNGRgMult
+SetTNGRgMult
+CanModifyActorTNG
+GetTNGActorAddons
+GetTNGActorAddon
+SetTNGActorAddon
+GetTNGActorSize
+SetTNGActorSize
+TNGActorItemsInfo
+TNGSwapRevealing
+CheckTNGActors
+GetTNGSlot52Mods
+TNGSlot52ModBehavior
+UpdateTNGSettings
+UpdateTNGLogLvl
+ShowTNGLogLocation
+GetTNGErrDscr
+TNGWhyProblem
+GetCSOffensiveMult
+GetCSDefensiveMult
+GetCSGroupOffensiveMult
+GetCSAvoidThreatChance
+GetCSMeleeMult
+GetCSRangedMult
+GetCSMagicMult
+GetCSShoutMult
+GetCSStaffMult
+GetCSUnarmedMult
+SetCSOffensiveMult
+SetCSDefensiveMult
+SetCSGroupOffensiveMult
+SetCSAvoidThreatChance
+SetCSMeleeMult
+SetCSRangedMult
+SetCSMagicMult
+SetCSShoutMult
+SetCSStaffMult
+SetCSUnarmedMult
+GetCSMeleeAttackStaggeredMult
+GetCSMeleePowerAttackStaggeredMult
+GetCSMeleePowerAttackBlockingMult
+GetCSMeleeBashMult
+GetCSMeleeBashRecoiledMult
+GetCSMeleeBashAttackMult
+GetCSMeleeBashPowerAttackMult
+GetCSMeleeSpecialAttackMult
+GetCSAllowDualWielding
+SetCSMeleeAttackStaggeredMult
+SetCSMeleePowerAttackStaggeredMult
+SetCSMeleePowerAttackBlockingMult
+SetCSMeleeBashMult
+SetCSMeleeBashRecoiledMult
+SetCSMeleeBashAttackMult
+SetCSMeleeBashPowerAttackMult
+SetCSMeleeSpecialAttackMult
+SetCSAllowDualWielding
+GetCSCloseRangeDuelingCircleMult
+GetCSCloseRangeDuelingFallbackMult
+GetCSCloseRangeFlankingFlankDistance
+GetCSCloseRangeFlankingStalkTime
+SetCSCloseRangeDuelingCircleMult
+SetCSCloseRangeDuelingFallbackMult
+SetCSCloseRangeFlankingFlankDistance
+SetCSCloseRangeFlankingStalkTime
+GetCSLongRangeStrafeMult
+SetCSLongRangeStrafeMult
+GetCSFlightHoverChance
+GetCSFlightDiveBombChance
+GetCSFlightFlyingAttackChance
+SetCSFlightHoverChance
+SetCSFlightDiveBombChance
+SetSILNakedSlotMask
+GetAnimationEventName
+GetAnimationFileName
+SetObjectiveText
+RemoveInvalidConstructibleObjects (RemoveCOs)
+GetAllOutfitParts
+GetAllTexturePaths
+GetAutorunLines
+AddAutorunLine
+RemoveAutorunLine
+AddFormsToFormlist
+AddFormToFormlists
+CopyKeywords
+AddKeywordsToForm
+RemoveKeywordsFromForm
+AddKeywordToForms
+RemoveKeywordFromForms
+FindEffectOnActor
+FindKeywordOnForm
+PlaceBefore
+GetWornForms
+RemoveDecals
+RefreshItemMenu
+GetArtObjectNthTextureSet
+SetArtObjectNthTextureSet
+GetRaceSlotMask
+SetRaceSlotMask
+AddRaceSlotToMask
+RemoveRaceSlotFromMask
+GetAllArmorsForSlotMask
+AddAdditionalRaceToArmorAddon
+RemoveAdditionalRaceFromArmorAddon
+RaceSlotMaskHasPartOf
+ArmorSlotMaskHasPartOf
+ArmorAddonSlotMaskHasPartOf
+GetArmorAddonRaces
+ArmorAddonHasRace
+SetMapMarkerVisible
+SetCanFastTravelToMarker
+GetKnownEnchantments
+Reload
+GetRaceSlots
+StartWhiterunAttack
+OpenCustomSkillMenu
+ShowCustomTrainingMenu
+AdvanceCustomSkill (AdvCSkill)
+IncrementCustomSkill (IncCSkill)
+GetSkillName
+GetSkillLevel
+PacifyActor (Pacify)
+WhyHostile
+GetActorRefraction
+ReplaceArmorTextureSet
+GetLightingTemplate
+SetLightingTemplate
+GetVendorFactionContainer
+GetRefNodeNames
+SetExpressionPhoneme
+SetExpressionModifier
+ResetExpressionOverrides
+ShowAsHelpMessage
+ResetHelpMessage
+
 
 License
 ===
